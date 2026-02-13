@@ -36,8 +36,8 @@ func main() {
 		})
 
 		// Можно добавить другие упражнения
-		router.GET("/ws/exercise/palm", func(c *gin.Context) {
-			exerciseHandler.HandleWebSocket(c.Writer, c.Request, "palm")
+		router.GET("/ws/exercise/fist-palm", func(c *gin.Context) {
+			exerciseHandler.HandleWebSocket(c.Writer, c.Request, "fist-palm")
 		})
 
 		// REST эндпоинты

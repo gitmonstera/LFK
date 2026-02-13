@@ -7,7 +7,6 @@ from flask_socketio import SocketIO, emit
 import logging
 import time
 import os
-import importlib
 
 # Импортируем упражнения
 from exercises import EXERCISE_CLASSES
@@ -60,13 +59,30 @@ class ExerciseManager:
     def set_exercise(self, exercise_id):
         """Устанавливает текущее упражнение"""
         if exercise_id in self.exercises:
+            # Сохраняем старое упражнение для сравнения
+            old_exercise = self.current_exercise_id
             self.current_exercise = self.exercises[exercise_id]
             self.current_exercise_id = exercise_id
+
+            # Сбрасываем ТОЛЬКО если это действительно смена упражнения
+            if old_exercise != exercise_id:
+                if hasattr(self.current_exercise, 'reset'):
+                    self.current_exercise.reset()
+                    print(f"🔄 Упражнение сброшено при смене с {old_exercise} на {exercise_id}")
+
             print(f"🔄 Текущее упражнение: {self.current_exercise.name}")
             return True
         else:
             print(f"❌ Упражнение {exercise_id} не найдено")
             return False
+
+    def reset_current_exercise(self):
+        """Сбрасывает текущее упражнение (только по запросу)"""
+        if self.current_exercise and hasattr(self.current_exercise, 'reset'):
+            self.current_exercise.reset()
+            print(f"🔄 Упражнение сброшено по запросу")
+            return True
+        return False
 
     def get_exercise_list(self):
         """Возвращает список доступных упражнений"""
@@ -121,6 +137,9 @@ class ExerciseManager:
 
     def process_hand(self, results, display_frame, h, w):
         """Обрабатывает кадр с рукой"""
+        raised_fingers = 0
+        finger_states = []
+
         for hand_landmarks in results.multi_hand_landmarks:
             # Рисуем скелет
             mp_drawing.draw_landmarks(
@@ -162,12 +181,12 @@ class ExerciseManager:
     def success_response(self, frame, hand_detected, raised, states, message):
         """Формирует успешный ответ"""
         try:
-            # Конвертируем обратно в base64
             _, buffer = cv2.imencode('.jpg', frame, [cv2.IMWRITE_JPEG_QUALITY, 80])
             frame_out = base64.b64encode(buffer).decode('utf-8')
 
-            return {
-                "fist_detected": hand_detected and states[1] if self.current_exercise_id == "fist-index" else hand_detected,
+            # Базовый ответ
+            response = {
+                "fist_detected": hand_detected,
                 "hand_detected": hand_detected,
                 "raised_fingers": raised,
                 "finger_states": states,
@@ -177,6 +196,16 @@ class ExerciseManager:
                 "exercise_name": self.current_exercise.name,
                 "status": "success"
             }
+
+            # Добавляем структурированные данные для специальных упражнений
+            if hasattr(self.current_exercise, 'get_structured_data'):
+                structured = self.current_exercise.get_structured_data()
+                if structured:
+                    response["structured"] = structured
+                    # Убираем лишний вывод, чтобы не засорять логи
+                    # print(f"📊 Добавлены структурированные данные")
+
+            return response
         except Exception as e:
             print(f"❌ Ошибка при формировании ответа: {e}")
             return self.error_response("Error creating response")
@@ -211,6 +240,23 @@ def list_exercises():
     return jsonify({
         "exercises": exercise_manager.get_exercise_list()
     })
+
+@app.route('/reset_exercise', methods=['POST'])
+def reset_exercise():
+    """Сбрасывает текущее упражнение (только по запросу)"""
+    try:
+        if exercise_manager.reset_current_exercise():
+            return jsonify({
+                "status": "success",
+                "message": "Exercise reset successfully"
+            })
+        else:
+            return jsonify({
+                "status": "error",
+                "message": "Exercise does not support reset"
+            }), 400
+    except Exception as e:
+        return jsonify({"error": str(e), "status": "error"}), 400
 
 @app.route('/set_exercise', methods=['POST'])
 def set_exercise():
@@ -252,6 +298,8 @@ def process_frame():
         return jsonify(result)
     except Exception as e:
         print(f"❌ Ошибка в /process: {e}")
+        import traceback
+        traceback.print_exc()
         return jsonify({
             "fist_detected": False,
             "hand_detected": False,
@@ -265,6 +313,7 @@ def process_frame():
 @socketio.on('connect')
 def handle_connect():
     print('🔌 Клиент подключен')
+    # НЕ сбрасываем упражнение при подключении!
 
 @socketio.on('disconnect')
 def handle_disconnect():
@@ -277,6 +326,10 @@ def handle_frame(data):
             # Проверяем смену упражнения
             if 'exercise_type' in data:
                 exercise_manager.set_exercise(data['exercise_type'])
+
+            # Проверяем сброс упражнения (только если явно запрошено)
+            if 'reset' in data and data['reset']:
+                exercise_manager.reset_current_exercise()
 
             frame = data.get('frame')
             if frame:
@@ -304,6 +357,15 @@ def handle_frame(data):
             })
     except Exception as e:
         print(f"❌ WebSocket error: {e}")
+        emit('feedback', {
+            "fist_detected": False,
+            "hand_detected": False,
+            "raised_fingers": 0,
+            "message": f"WebSocket error: {str(e)}",
+            "processed_frame": "",
+            "current_exercise": exercise_manager.current_exercise_id,
+            "status": "error"
+        })
 
 if __name__ == '__main__':
     print("=" * 60)

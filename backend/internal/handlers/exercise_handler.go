@@ -20,9 +20,8 @@ var upgrader = gorilla.Upgrader{
 	CheckOrigin: func(r *http.Request) bool {
 		return true
 	},
-	// Увеличиваем размер буфера для больших сообщений
-	ReadBufferSize:  1024 * 1024, // 1MB
-	WriteBufferSize: 1024 * 1024, // 1MB
+	ReadBufferSize:  1024 * 1024,
+	WriteBufferSize: 1024 * 1024,
 }
 
 type ExerciseHandler struct {
@@ -48,7 +47,6 @@ func (h *ExerciseHandler) HandleWebSocket(w http.ResponseWriter, r *http.Request
 		return
 	}
 
-	// Устанавливаем большие таймауты
 	conn.SetReadDeadline(time.Now().Add(60 * time.Second))
 	conn.SetWriteDeadline(time.Now().Add(60 * time.Second))
 	conn.SetPongHandler(func(string) error {
@@ -59,7 +57,7 @@ func (h *ExerciseHandler) HandleWebSocket(w http.ResponseWriter, r *http.Request
 	client := &websocket.Client{
 		Hub:        h.hub,
 		Conn:       conn,
-		Send:       make(chan []byte, 512), // Увеличиваем буфер
+		Send:       make(chan []byte, 512),
 		ExerciseID: exerciseId,
 	}
 
@@ -77,7 +75,6 @@ func (h *ExerciseHandler) readPump(client *websocket.Client) {
 		client.Conn.Close()
 	}()
 
-	// Устанавливаем лимит на размер сообщения (10MB)
 	client.Conn.SetReadLimit(10 * 1024 * 1024)
 
 	for {
@@ -91,11 +88,9 @@ func (h *ExerciseHandler) readPump(client *websocket.Client) {
 
 		log.Printf("Received message from client %s, size: %d bytes", client.ExerciseID, len(message))
 
-		// Отправляем ВСЁ сообщение в Python для обработки
 		feedback, err := h.processFrame(string(message))
 		if err != nil {
 			log.Printf("Error processing frame for %s: %v", client.ExerciseID, err)
-			// Отправляем сообщение об ошибке клиенту
 			errorMsg := map[string]interface{}{
 				"status":  "error",
 				"message": err.Error(),
@@ -109,12 +104,12 @@ func (h *ExerciseHandler) readPump(client *websocket.Client) {
 			continue
 		}
 
-		// Отправляем обратную связь клиенту
 		feedbackJSON, _ := json.Marshal(feedback)
 
 		select {
 		case client.Send <- feedbackJSON:
-			log.Printf("Feedback sent to client %s, size: %d bytes", client.ExerciseID, len(feedbackJSON))
+			log.Printf("Feedback sent to client %s, size: %d bytes, structured=%v",
+				client.ExerciseID, len(feedbackJSON), feedback.Structured != nil)
 		default:
 			log.Printf("Client %s send buffer full", client.ExerciseID)
 		}
@@ -137,17 +132,13 @@ func (h *ExerciseHandler) writePump(client *websocket.Client) {
 				return
 			}
 
-			// Устанавливаем таймаут на запись
 			client.Conn.SetWriteDeadline(time.Now().Add(30 * time.Second))
-
-			// Отправляем сообщение
 			if err := client.Conn.WriteMessage(gorilla.TextMessage, message); err != nil {
 				log.Printf("writePump error for %s: %v", client.ExerciseID, err)
 				return
 			}
 
 		case <-ticker.C:
-			// Отправляем ping для поддержания соединения
 			client.Conn.SetWriteDeadline(time.Now().Add(30 * time.Second))
 			if err := client.Conn.WriteMessage(gorilla.PingMessage, nil); err != nil {
 				log.Printf("Ping error for %s: %v", client.ExerciseID, err)
@@ -160,49 +151,67 @@ func (h *ExerciseHandler) writePump(client *websocket.Client) {
 func (h *ExerciseHandler) processFrame(messageStr string) (*models.FrameFeedback, error) {
 	log.Printf("📤 Отправка в Python, размер данных: %d байт", len(messageStr))
 
-	// Пробуем распарсить сообщение от клиента
 	var clientMsg map[string]interface{}
 	if err := json.Unmarshal([]byte(messageStr), &clientMsg); err != nil {
 		log.Printf("❌ Ошибка парсинга сообщения клиента: %v", err)
 		return nil, err
 	}
 
-	// Проверяем наличие frame
 	frameData, ok := clientMsg["frame"].(string)
 	if !ok {
 		log.Printf("❌ Нет поля frame в сообщении")
 		return nil, fmt.Errorf("no frame data")
 	}
 
-	// Создаем запрос для Python
 	pythonRequest := map[string]interface{}{
 		"frame": frameData,
 	}
 
-	// Если есть exercise_type, добавляем его
 	if exType, ok := clientMsg["exercise_type"]; ok {
 		pythonRequest["exercise_type"] = exType
 	}
 
-	// Отправляем в Python
 	resp, err := h.pythonClient.ProcessFrame(pythonRequest)
 	if err != nil {
 		log.Printf("❌ Ошибка Python: %v", err)
 		return nil, err
 	}
 
-	log.Printf("📥 Ответ от Python: status=%s, hand_detected=%v, message='%s', frame_size=%d",
-		resp.Status, resp.HandDetected, resp.Message, len(resp.ProcessedFrame))
+	// Конвертируем StructuredData если есть
+	var structured *models.StructuredData
+	if resp.Structured != nil {
+		structured = &models.StructuredData{
+			Step:        resp.Structured.Step,
+			StepName:    resp.Structured.StepName,
+			Countdown:   resp.Structured.Countdown,
+			Progress:    resp.Structured.Progress,
+			Cycle:       resp.Structured.Cycle,
+			TotalCycles: resp.Structured.TotalCycles,
+			Status:      resp.Structured.Status,
+		}
+		log.Printf("📊 Структурированные данные: шаг=%d, счетчик=%v, прогресс=%.1f%%, цикл=%d/%d",
+			resp.Structured.Step,
+			resp.Structured.Countdown,
+			resp.Structured.Progress,
+			resp.Structured.Cycle,
+			resp.Structured.TotalCycles)
+	}
 
 	feedback := &models.FrameFeedback{
-		FistDetected:   resp.FistDetected,
-		HandDetected:   resp.HandDetected,
-		RaisedFingers:  resp.RaisedFingers,
-		FingerStates:   resp.FingerStates,
-		Message:        resp.Message,
-		ProcessedFrame: resp.ProcessedFrame,
-		Timestamp:      time.Now().Unix(),
+		FistDetected:    resp.FistDetected,
+		HandDetected:    resp.HandDetected,
+		RaisedFingers:   resp.RaisedFingers,
+		FingerStates:    resp.FingerStates,
+		Message:         resp.Message,
+		ProcessedFrame:  resp.ProcessedFrame,
+		CurrentExercise: resp.CurrentExercise,
+		ExerciseName:    resp.ExerciseName,
+		Structured:      structured,
+		Timestamp:       time.Now().Unix(),
 	}
+
+	log.Printf("📥 Ответ от Python: status=%s, hand_detected=%v, message='%s', structured=%v",
+		resp.Status, resp.HandDetected, resp.Message, resp.Structured != nil)
 
 	return feedback, nil
 }
