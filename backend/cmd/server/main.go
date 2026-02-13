@@ -16,11 +16,8 @@ func main() {
 	hub := websocket.NewHub()
 	go hub.Run()
 
-	// Инициализация Python бриджа
-	pythonBridge := handlers.NewPythonBridge("http://localhost:5001")
-
-	// Создаем обработчики
-	exerciseHandler := handlers.NewExerciseHandler(hub, pythonBridge)
+	// Создаем обработчик с URL Python сервера
+	exerciseHandler := handlers.NewExerciseHandler(hub, "http://localhost:5001")
 
 	// Маршруты API
 	api := router.Group("/api")

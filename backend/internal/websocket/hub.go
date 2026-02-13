@@ -4,12 +4,12 @@ import (
 	"log"
 	"sync"
 
-	"github.com/gorilla/websocket"
+	gorilla "github.com/gorilla/websocket"
 )
 
 type Client struct {
 	Hub        *Hub
-	Conn       *websocket.Conn
+	Conn       *gorilla.Conn
 	Send       chan []byte
 	ExerciseID string
 }
