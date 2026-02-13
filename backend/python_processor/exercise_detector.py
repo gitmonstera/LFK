@@ -59,11 +59,17 @@ class ExerciseManager:
     def set_exercise(self, exercise_id):
         """Устанавливает текущее упражнение"""
         if exercise_id in self.exercises:
+            # Сохраняем старое упражнение для сравнения
+            old_exercise = self.current_exercise_id
             self.current_exercise = self.exercises[exercise_id]
             self.current_exercise_id = exercise_id
-            # Сбрасываем упражнение при смене
-            if hasattr(self.current_exercise, 'reset'):
-                self.current_exercise.reset()
+
+            # Сбрасываем ТОЛЬКО если это действительно смена упражнения
+            if old_exercise != exercise_id:
+                if hasattr(self.current_exercise, 'reset'):
+                    self.current_exercise.reset()
+                    print(f"🔄 Упражнение сброшено при смене с {old_exercise} на {exercise_id}")
+
             print(f"🔄 Текущее упражнение: {self.current_exercise.name}")
             return True
         else:
@@ -71,10 +77,12 @@ class ExerciseManager:
             return False
 
     def reset_current_exercise(self):
-        """Сбрасывает текущее упражнение в начальное состояние"""
+        """Сбрасывает текущее упражнение (только по запросу)"""
         if self.current_exercise and hasattr(self.current_exercise, 'reset'):
             self.current_exercise.reset()
-            print(f"🔄 Текущее упражнение сброшено")
+            print(f"🔄 Упражнение сброшено по запросу")
+            return True
+        return False
 
     def get_exercise_list(self):
         """Возвращает список доступных упражнений"""
@@ -194,7 +202,8 @@ class ExerciseManager:
                 structured = self.current_exercise.get_structured_data()
                 if structured:
                     response["structured"] = structured
-                    print(f"📊 Добавлены структурированные данные: {structured}")
+                    # Убираем лишний вывод, чтобы не засорять логи
+                    # print(f"📊 Добавлены структурированные данные")
 
             return response
         except Exception as e:
@@ -234,13 +243,18 @@ def list_exercises():
 
 @app.route('/reset_exercise', methods=['POST'])
 def reset_exercise():
-    """Сбрасывает текущее упражнение"""
+    """Сбрасывает текущее упражнение (только по запросу)"""
     try:
-        exercise_manager.reset_current_exercise()
-        return jsonify({
-            "status": "success",
-            "message": "Exercise reset successfully"
-        })
+        if exercise_manager.reset_current_exercise():
+            return jsonify({
+                "status": "success",
+                "message": "Exercise reset successfully"
+            })
+        else:
+            return jsonify({
+                "status": "error",
+                "message": "Exercise does not support reset"
+            }), 400
     except Exception as e:
         return jsonify({"error": str(e), "status": "error"}), 400
 
@@ -299,8 +313,7 @@ def process_frame():
 @socketio.on('connect')
 def handle_connect():
     print('🔌 Клиент подключен')
-    # Сбрасываем упражнение при новом подключении
-    exercise_manager.reset_current_exercise()
+    # НЕ сбрасываем упражнение при подключении!
 
 @socketio.on('disconnect')
 def handle_disconnect():
@@ -314,7 +327,7 @@ def handle_frame(data):
             if 'exercise_type' in data:
                 exercise_manager.set_exercise(data['exercise_type'])
 
-            # Проверяем сброс упражнения
+            # Проверяем сброс упражнения (только если явно запрошено)
             if 'reset' in data and data['reset']:
                 exercise_manager.reset_current_exercise()
 

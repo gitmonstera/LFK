@@ -108,9 +108,14 @@ class FistPalmExercise(BaseExercise):
         # Определяем, ладонь ли это (3-5 пальцев поднято)
         is_palm = raised_fingers >= 3
 
+        # Отладочный вывод
+        print(f"   🔍 Текущее состояние: {self.state}")
+        print(f"   🔍 Поднято пальцев: {raised_fingers}, is_fist={is_fist}, is_palm={is_palm}")
+
         # Машина состояний
         if self.state == "waiting_fist":
             # Ждем пока пользователь сожмет кулак
+            print(f"   🔍 Ожидание кулака: is_fist={is_fist}")
             if is_fist:
                 self.state = "holding_fist"
                 self.state_start_time = current_time
@@ -122,6 +127,7 @@ class FistPalmExercise(BaseExercise):
 
         elif self.state == "holding_fist":
             # Держим кулак с обратным отсчетом
+            print(f"   🔍 Удержание кулака: is_fist={is_fist}")
             if not is_fist:
                 # Если разжал раньше времени - возвращаемся
                 self.state = "waiting_fist"
@@ -145,6 +151,7 @@ class FistPalmExercise(BaseExercise):
 
         elif self.state == "waiting_palm":
             # Ждем пока пользователь разожмет ладонь
+            print(f"   🔍 Ожидание ладони: is_palm={is_palm}")
             if is_palm:
                 self.state = "holding_palm"
                 self.state_start_time = current_time
@@ -156,6 +163,7 @@ class FistPalmExercise(BaseExercise):
 
         elif self.state == "holding_palm":
             # Держим ладонь с обратным отсчетом
+            print(f"   🔍 Удержание ладони: is_palm={is_palm}")
             if not is_palm:
                 # Если сжал раньше времени - возвращаемся
                 self.state = "waiting_palm"
@@ -186,6 +194,7 @@ class FistPalmExercise(BaseExercise):
 
         elif self.state == "completed":
             # Если упражнение завершено, ничего не делаем
+            print(f"   🔍 Упражнение завершено")
             pass
 
         # Обновляем структурированные данные
