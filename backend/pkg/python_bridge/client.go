@@ -9,48 +9,35 @@ import (
 	"time"
 )
 
-// Client для связи с Python сервером
 type Client struct {
 	BaseURL    string
 	HTTPClient *http.Client
 }
 
-// NewClient создает нового клиента
 func NewClient(baseURL string) *Client {
 	return &Client{
 		BaseURL: baseURL,
 		HTTPClient: &http.Client{
-			Timeout: 10 * time.Second,
+			Timeout: 30 * time.Second, // Увеличиваем таймаут
 		},
 	}
 }
 
-// FrameRequest структура запроса к Python
-type FrameRequest struct {
-	Frame string `json:"frame"`
-}
-
-// FrameResponse структура ответа от Python
 type FrameResponse struct {
-	FistDetected   bool   `json:"fist_detected"`
-	HandDetected   bool   `json:"hand_detected"`
-	RaisedFingers  int    `json:"raised_fingers"`
-	FingerStates   []bool `json:"finger_states"`
-	Message        string `json:"message"`
-	ProcessedFrame string `json:"processed_frame"`
-	Status         string `json:"status"`
-	Error          string `json:"error,omitempty"`
-	Timestamp      int64  `json:"timestamp"`
+	FistDetected    bool   `json:"fist_detected"`
+	HandDetected    bool   `json:"hand_detected"`
+	RaisedFingers   int    `json:"raised_fingers"`
+	FingerStates    []bool `json:"finger_states"`
+	Message         string `json:"message"`
+	ProcessedFrame  string `json:"processed_frame"`
+	CurrentExercise string `json:"current_exercise"`
+	Status          string `json:"status"`
+	Error           string `json:"error,omitempty"`
 }
 
-// ProcessFrame отправляет кадр в Python для обработки
-func (c *Client) ProcessFrame(frameBase64 string) (*FrameResponse, error) {
-	// Создаем запрос
-	req := FrameRequest{
-		Frame: frameBase64,
-	}
-
-	jsonData, err := json.Marshal(req)
+// ProcessFrame отправляет запрос в Python
+func (c *Client) ProcessFrame(requestData interface{}) (*FrameResponse, error) {
+	jsonData, err := json.Marshal(requestData)
 	if err != nil {
 		return nil, fmt.Errorf("error marshaling request: %v", err)
 	}
@@ -66,6 +53,11 @@ func (c *Client) ProcessFrame(frameBase64 string) (*FrameResponse, error) {
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
 		return nil, fmt.Errorf("error reading response: %v", err)
+	}
+
+	// Проверяем статус ответа
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("Python server returned status %d: %s", resp.StatusCode, string(body))
 	}
 
 	// Парсим ответ

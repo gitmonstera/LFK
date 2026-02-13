@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"encoding/json"
+	"fmt"
 	"log"
 	"net/http"
 	"time"
@@ -19,6 +20,9 @@ var upgrader = gorilla.Upgrader{
 	CheckOrigin: func(r *http.Request) bool {
 		return true
 	},
+	// Увеличиваем размер буфера для больших сообщений
+	ReadBufferSize:  1024 * 1024, // 1MB
+	WriteBufferSize: 1024 * 1024, // 1MB
 }
 
 type ExerciseHandler struct {
@@ -44,10 +48,18 @@ func (h *ExerciseHandler) HandleWebSocket(w http.ResponseWriter, r *http.Request
 		return
 	}
 
+	// Устанавливаем большие таймауты
+	conn.SetReadDeadline(time.Now().Add(60 * time.Second))
+	conn.SetWriteDeadline(time.Now().Add(60 * time.Second))
+	conn.SetPongHandler(func(string) error {
+		conn.SetReadDeadline(time.Now().Add(60 * time.Second))
+		return nil
+	})
+
 	client := &websocket.Client{
 		Hub:        h.hub,
 		Conn:       conn,
-		Send:       make(chan []byte, 256),
+		Send:       make(chan []byte, 512), // Увеличиваем буфер
 		ExerciseID: exerciseId,
 	}
 
@@ -65,31 +77,22 @@ func (h *ExerciseHandler) readPump(client *websocket.Client) {
 		client.Conn.Close()
 	}()
 
+	// Устанавливаем лимит на размер сообщения (10MB)
+	client.Conn.SetReadLimit(10 * 1024 * 1024)
+
 	for {
 		_, message, err := client.Conn.ReadMessage()
 		if err != nil {
-			log.Printf("readPump error for %s: %v", client.ExerciseID, err)
+			if gorilla.IsUnexpectedCloseError(err, gorilla.CloseGoingAway, gorilla.CloseAbnormalClosure) {
+				log.Printf("readPump error for %s: %v", client.ExerciseID, err)
+			}
 			break
 		}
 
-		log.Printf("Received frame from client %s, size: %d bytes", client.ExerciseID, len(message))
+		log.Printf("Received message from client %s, size: %d bytes", client.ExerciseID, len(message))
 
-		// Парсим сообщение от клиента
-		var clientMsg map[string]interface{}
-		if err := json.Unmarshal(message, &clientMsg); err != nil {
-			log.Printf("Error parsing client message: %v", err)
-			continue
-		}
-
-		// Извлекаем frame
-		frameData, ok := clientMsg["frame"].(string)
-		if !ok {
-			log.Printf("No frame data in message")
-			continue
-		}
-
-		// Отправляем кадр в Python для обработки
-		feedback, err := h.processFrame(frameData)
+		// Отправляем ВСЁ сообщение в Python для обработки
+		feedback, err := h.processFrame(string(message))
 		if err != nil {
 			log.Printf("Error processing frame for %s: %v", client.ExerciseID, err)
 			// Отправляем сообщение об ошибке клиенту
@@ -98,17 +101,20 @@ func (h *ExerciseHandler) readPump(client *websocket.Client) {
 				"message": err.Error(),
 			}
 			errorJSON, _ := json.Marshal(errorMsg)
-			client.Send <- errorJSON
+			select {
+			case client.Send <- errorJSON:
+			default:
+				log.Printf("Client %s send buffer full", client.ExerciseID)
+			}
 			continue
 		}
 
 		// Отправляем обратную связь клиенту
 		feedbackJSON, _ := json.Marshal(feedback)
-		log.Printf("Sending feedback to client %s, size: %d bytes", client.ExerciseID, len(feedbackJSON))
 
 		select {
 		case client.Send <- feedbackJSON:
-			log.Printf("Feedback sent to client %s", client.ExerciseID)
+			log.Printf("Feedback sent to client %s, size: %d bytes", client.ExerciseID, len(feedbackJSON))
 		default:
 			log.Printf("Client %s send buffer full", client.ExerciseID)
 		}
@@ -127,20 +133,22 @@ func (h *ExerciseHandler) writePump(client *websocket.Client) {
 		select {
 		case message, ok := <-client.Send:
 			if !ok {
-				log.Printf("Send channel closed for client %s", client.ExerciseID)
 				client.Conn.WriteMessage(gorilla.CloseMessage, []byte{})
 				return
 			}
 
-			client.Conn.SetWriteDeadline(time.Now().Add(10 * time.Second))
+			// Устанавливаем таймаут на запись
+			client.Conn.SetWriteDeadline(time.Now().Add(30 * time.Second))
+
+			// Отправляем сообщение
 			if err := client.Conn.WriteMessage(gorilla.TextMessage, message); err != nil {
 				log.Printf("writePump error for %s: %v", client.ExerciseID, err)
 				return
 			}
-			log.Printf("Successfully wrote message to client %s", client.ExerciseID)
 
 		case <-ticker.C:
-			client.Conn.SetWriteDeadline(time.Now().Add(10 * time.Second))
+			// Отправляем ping для поддержания соединения
+			client.Conn.SetWriteDeadline(time.Now().Add(30 * time.Second))
 			if err := client.Conn.WriteMessage(gorilla.PingMessage, nil); err != nil {
 				log.Printf("Ping error for %s: %v", client.ExerciseID, err)
 				return
@@ -149,10 +157,35 @@ func (h *ExerciseHandler) writePump(client *websocket.Client) {
 	}
 }
 
-func (h *ExerciseHandler) processFrame(frameStr string) (*models.FrameFeedback, error) {
-	log.Printf("📤 Отправка в Python, размер данных: %d байт", len(frameStr))
+func (h *ExerciseHandler) processFrame(messageStr string) (*models.FrameFeedback, error) {
+	log.Printf("📤 Отправка в Python, размер данных: %d байт", len(messageStr))
 
-	resp, err := h.pythonClient.ProcessFrame(frameStr)
+	// Пробуем распарсить сообщение от клиента
+	var clientMsg map[string]interface{}
+	if err := json.Unmarshal([]byte(messageStr), &clientMsg); err != nil {
+		log.Printf("❌ Ошибка парсинга сообщения клиента: %v", err)
+		return nil, err
+	}
+
+	// Проверяем наличие frame
+	frameData, ok := clientMsg["frame"].(string)
+	if !ok {
+		log.Printf("❌ Нет поля frame в сообщении")
+		return nil, fmt.Errorf("no frame data")
+	}
+
+	// Создаем запрос для Python
+	pythonRequest := map[string]interface{}{
+		"frame": frameData,
+	}
+
+	// Если есть exercise_type, добавляем его
+	if exType, ok := clientMsg["exercise_type"]; ok {
+		pythonRequest["exercise_type"] = exType
+	}
+
+	// Отправляем в Python
+	resp, err := h.pythonClient.ProcessFrame(pythonRequest)
 	if err != nil {
 		log.Printf("❌ Ошибка Python: %v", err)
 		return nil, err

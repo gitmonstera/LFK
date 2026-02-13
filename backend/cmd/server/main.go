@@ -26,10 +26,18 @@ func main() {
 			c.JSON(200, gin.H{"status": "ok"})
 		})
 
-		// WebSocket для упражнений
-		router.GET("/ws/exercise/:exerciseId", func(c *gin.Context) {
-			exerciseId := c.Param("exerciseId")
-			exerciseHandler.HandleWebSocket(c.Writer, c.Request, exerciseId)
+		// Отдельные WebSocket эндпоинты для каждого упражнения
+		router.GET("/ws/exercise/fist", func(c *gin.Context) {
+			exerciseHandler.HandleWebSocket(c.Writer, c.Request, "fist")
+		})
+
+		router.GET("/ws/exercise/fist-index", func(c *gin.Context) {
+			exerciseHandler.HandleWebSocket(c.Writer, c.Request, "fist-index")
+		})
+
+		// Можно добавить другие упражнения
+		router.GET("/ws/exercise/palm", func(c *gin.Context) {
+			exerciseHandler.HandleWebSocket(c.Writer, c.Request, "palm")
 		})
 
 		// REST эндпоинты

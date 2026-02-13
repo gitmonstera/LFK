@@ -1,83 +1,158 @@
+import cv2
 import websocket
+import base64
 import json
-import threading
+import numpy as np
 import time
 
-ws_url = "ws://localhost:8080/ws/exercise/test123"
+# URL для разных упражнений
+EXERCISE_URLS = {
+    '1': "ws://localhost:8080/ws/exercise/fist",        # Кулак
+    '2': "ws://localhost:8080/ws/exercise/fist-index",  # Кулак с указательным
+    # Можно добавить другие упражнения
+    # '3': "ws://localhost:8080/ws/exercise/palm",      # Ладонь
+    # '4': "ws://localhost:8080/ws/exercise/two_fingers", # Два пальца
+}
 
-def on_message(ws, message):
-    print(f"\n📩 ПОЛУЧЕНО СООБЩЕНИЕ:")
-    print(f"Тип: {type(message)}")
-    print(f"Длина: {len(message)}")
+EXERCISE_NAMES = {
+    '1': "Кулак (все пальцы сжаты)",
+    '2': "Кулак с указательным пальцем",
+}
+
+def print_menu():
+    """Вывод меню"""
+    print("\n" + "=" * 60)
+    print("🎮 ВЫБОР УПРАЖНЕНИЯ")
+    print("=" * 60)
+    for key, name in EXERCISE_NAMES.items():
+        print(f"   {key} - {name}")
+    print("   q - Выход")
+    print("=" * 60)
+
+def connect_and_run(exercise_key):
+    """Подключение и выполнение упражнения"""
+    url = EXERCISE_URLS[exercise_key]
+    exercise_name = EXERCISE_NAMES[exercise_key]
+
+    print(f"\n🔌 Подключение к {url}...")
+    print(f"📋 Упражнение: {exercise_name}")
 
     try:
-        data = json.loads(message)
-        print(f"status: {data.get('status')}")
-        print(f"hand_detected: {data.get('hand_detected')}")
-        print(f"raised_fingers: {data.get('raised_fingers')}")
-        print(f"message: {data.get('message')}")
-        print(f"frame_size: {len(data.get('processed_frame', ''))}")
-        if data.get('processed_frame'):
-            print(f"frame_preview: {data.get('processed_frame')[:50]}...")
-    except Exception as e:
-        print(f"❌ Ошибка парсинга JSON: {e}")
-        print(f"Сырые данные: {message[:200]}")
+        # Создаем соединение
+        ws = websocket.create_connection(url, timeout=10)
+        print("✅ Подключено!")
 
-def on_error(ws, error):
-    print(f"❌ Ошибка: {error}")
-
-def on_close(ws, close_status_code, close_msg):
-    print("🔌 Соединение закрыто")
-
-def on_open(ws):
-    print("✅ Соединение открыто")
-
-    def send_frames():
-        import cv2
-        import base64
-
+        # Открываем камеру
         camera = cv2.VideoCapture(0)
         camera.set(cv2.CAP_PROP_FRAME_WIDTH, 640)
         camera.set(cv2.CAP_PROP_FRAME_HEIGHT, 480)
 
+        if not camera.isOpened():
+            print("❌ Не удалось открыть камеру")
+            return False
+
+        print("📹 Отправка кадров... Нажмите ESC для возврата в меню")
+        print("-" * 60)
+
         frame_count = 0
+        fps_time = time.time()
 
         while True:
+            # Читаем кадр
             good, img = camera.read()
             if not good:
-                break
+                continue
 
             frame_count += 1
 
-            # Отправляем каждый 5-й кадр
-            if frame_count % 5 == 0:
-                _, buffer = cv2.imencode('.jpg', img, [cv2.IMWRITE_JPEG_QUALITY, 70])
+            # Расчет FPS
+            if frame_count % 30 == 0:
+                current_time = time.time()
+                fps = 30 / (current_time - fps_time)
+                fps_time = current_time
+                print(f"\r📹 FPS: {fps:.1f} | Кадров: {frame_count}", end="", flush=True)
+
+            # Отправляем каждый 3-й кадр
+            if frame_count % 3 == 0:
+                _, buffer = cv2.imencode('.jpg', img, [cv2.IMWRITE_JPEG_QUALITY, 50])
                 img_base64 = base64.b64encode(buffer).decode('utf-8')
 
+                # Отправляем
                 ws.send(json.dumps({"frame": img_base64}))
-                print(f"📤 Отправлен кадр {frame_count}")
 
-            cv2.imshow('Camera', img)
-            if cv2.waitKey(1) & 0xFF == ord('q'):
+                # Получаем ответ
+                ws.settimeout(0.5)
+                try:
+                    result = ws.recv()
+                    data = json.loads(result)
+
+                    # Показываем обработанный кадр
+                    if 'processed_frame' in data and data['processed_frame']:
+                        frame_bytes = base64.b64decode(data['processed_frame'])
+                        nparr = np.frombuffer(frame_bytes, np.uint8)
+                        processed = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
+                        if processed is not None:
+                            cv2.imshow('Processed', processed)
+
+                    # Выводим информацию
+                    hand = data.get('hand_detected', False)
+                    fingers = data.get('raised_fingers', 0)
+                    msg = data.get('message', '')
+                    ex = data.get('current_exercise', 'fist')
+
+                    # Определяем иконку для упражнения
+                    ex_icon = "👊" if ex == "fist" else "👉"
+
+                    print(f"\r{ex_icon} {exercise_name[:20]}: {'🖐️' if hand else '❌'} | Пальцев: {fingers} | {msg}    ", end="", flush=True)
+
+                except websocket.TimeoutError:
+                    pass
+                except Exception as e:
+                    print(f"\n❌ Ошибка получения: {e}")
+
+            # Добавляем информацию на кадр
+            cv2.putText(img, f"Exercise: {exercise_name[:20]}", (10, 30),
+                       cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 255, 0), 2)
+            cv2.putText(img, "ESC - меню", (10, 60),
+                       cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 255, 255), 2)
+
+            # Показываем оригинал
+            cv2.imshow('Original', img)
+
+            # Выход по ESC
+            key = cv2.waitKey(1) & 0xFF
+            if key == 27:  # ESC
                 break
 
         camera.release()
         cv2.destroyAllWindows()
         ws.close()
+        print("\n🔌 Соединение закрыто")
+        return True
 
-    thread = threading.Thread(target=send_frames)
-    thread.start()
+    except Exception as e:
+        print(f"\n❌ Ошибка: {e}")
+        return False
+
+def main():
+    print("=" * 60)
+    print("🎮 ТЕСТОВЫЙ КЛИЕНТ С ВЫБОРОМ УПРАЖНЕНИЙ")
+    print("=" * 60)
+
+    while True:
+        print_menu()
+        choice = input("Выберите упражнение (1-2, q - выход): ").strip().lower()
+
+        if choice == 'q':
+            print("👋 До свидания!")
+            break
+
+        if choice in EXERCISE_URLS:
+            connect_and_run(choice)
+        else:
+            print("❌ Неверный выбор. Попробуйте снова.")
+
+        time.sleep(1)
 
 if __name__ == "__main__":
-    websocket.enableTrace(False)
-    print("=" * 60)
-    print("🔍 ТЕСТОВЫЙ КЛИЕНТ - СЫРЫЕ ДАННЫЕ")
-    print("=" * 60)
-
-    ws = websocket.WebSocketApp(ws_url,
-                              on_open=on_open,
-                              on_message=on_message,
-                              on_error=on_error,
-                              on_close=on_close)
-
-    ws.run_forever()
+    main()
