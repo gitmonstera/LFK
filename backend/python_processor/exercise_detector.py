@@ -7,7 +7,10 @@ from flask_socketio import SocketIO, emit
 import logging
 import time
 import os
-from enum import Enum
+import importlib
+
+# Импортируем упражнения
+from exercises import EXERCISE_CLASSES
 
 # Настраиваем логирование
 logging.basicConfig(level=logging.INFO)
@@ -30,88 +33,62 @@ hands = mp_hands.Hands(
     min_tracking_confidence=0.5
 )
 
-class ExerciseType(Enum):
-    FIST = "fist"           # Кулак
-    FIST_INDEX = "fist-index"  # Кулак с указательным
+class ExerciseManager:
+    """Менеджер упражнений"""
 
-class HandDetector:
     def __init__(self):
-        self.current_exercise = ExerciseType.FIST
-        print(f"HandDetector инициализирован")
+        self.exercises = {}
+        self.current_exercise = None
+        self.current_exercise_id = "fist"
+
+        # Загружаем все доступные упражнения
+        self.load_exercises()
+
+        # Устанавливаем упражнение по умолчанию
+        self.set_exercise("fist")
+
         # Создаем папку для отладки
         if not os.path.exists('debug_frames'):
             os.makedirs('debug_frames')
 
-    def set_exercise_from_url(self, exercise_type):
-        """Устанавливает упражнение на основе URL"""
-        try:
-            self.current_exercise = ExerciseType(exercise_type)
-            print(f"🔄 Установлено упражнение: {self.current_exercise.value}")
+    def load_exercises(self):
+        """Загружает все упражнения из папки exercises"""
+        for ex_id, ex_class in EXERCISE_CLASSES.items():
+            self.exercises[ex_id] = ex_class()
+            print(f"📚 Загружено упражнение: {ex_id} - {self.exercises[ex_id].name}")
+
+    def set_exercise(self, exercise_id):
+        """Устанавливает текущее упражнение"""
+        if exercise_id in self.exercises:
+            self.current_exercise = self.exercises[exercise_id]
+            self.current_exercise_id = exercise_id
+            print(f"🔄 Текущее упражнение: {self.current_exercise.name}")
             return True
-        except:
-            print(f"❌ Неизвестный тип: {exercise_type}")
+        else:
+            print(f"❌ Упражнение {exercise_id} не найдено")
             return False
 
-    def check_exercise(self, finger_states):
-        """Проверяет правильность выполнения упражнения"""
-        raised = sum(finger_states)
-
-        if self.current_exercise == ExerciseType.FIST:
-            # EX1: Кулак - все пальцы сжаты (поднято 0-1 палец)
-            is_correct = raised <= 1
-            message = "✅ Кулак сжат!" if is_correct else f"❌ Сожмите пальцы ({raised} поднято)"
-
-        elif self.current_exercise == ExerciseType.FIST_INDEX:
-            # EX2: Кулак с указательным
-            index_raised = finger_states[1]
-            other_raised = any([finger_states[2], finger_states[3], finger_states[4]])
-
-            is_correct = index_raised and not other_raised
-
-            if is_correct:
-                message = "✅ Указательный поднят!"
-            elif not index_raised:
-                message = "❌ Поднимите указательный"
-            else:
-                message = "❌ Сожмите остальные пальцы"
-        else:
-            is_correct = False
-            message = "Неизвестное упражнение"
-
-        return is_correct, message
-
-    def fix_base64_padding(self, data):
-        """Исправляет padding в base64 строке"""
-        # Убираем возможные кавычки
-        data = data.strip('"')
-        # Добавляем padding если нужно
-        missing_padding = len(data) % 4
-        if missing_padding:
-            data += '=' * (4 - missing_padding)
-        return data
+    def get_exercise_list(self):
+        """Возвращает список доступных упражнений"""
+        return [{"id": ex_id, "name": ex.name} for ex_id, ex in self.exercises.items()]
 
     def process_frame(self, frame_data):
         """Обработка кадра"""
         try:
-            print(f"\n=== НОВЫЙ КАДР ({self.current_exercise.value}) ===")
-
-            # Если пришел словарь, извлекаем frame
-            if isinstance(frame_data, dict):
-                if 'frame' in frame_data:
-                    frame_data = frame_data['frame']
-                else:
-                    return self.error_response("No frame in data")
+            print(f"\n=== НОВЫЙ КАДР ({self.current_exercise.name}) ===")
 
             # Декодируем base64
             if isinstance(frame_data, str):
                 try:
                     # Исправляем padding
-                    frame_data = self.fix_base64_padding(frame_data)
+                    missing_padding = len(frame_data) % 4
+                    if missing_padding:
+                        frame_data += '=' * (4 - missing_padding)
+
                     frame_bytes = base64.b64decode(frame_data)
                     print(f"📦 Декодировано {len(frame_bytes)} байт")
                 except Exception as e:
                     print(f"❌ Ошибка декодирования base64: {e}")
-                    print(f"Первые 50 символов: {frame_data[:50]}")
                     return self.error_response(f"Ошибка декодирования")
             else:
                 return self.error_response("Invalid frame data type")
@@ -121,10 +98,7 @@ class HandDetector:
             frame = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
 
             if frame is None:
-                print("❌ Не удалось декодировать изображение")
                 return self.error_response("Cannot decode image")
-
-            print(f"📷 Изображение: {frame.shape}")
 
             # Конвертируем в RGB для MediaPipe
             frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
@@ -145,29 +119,6 @@ class HandDetector:
             traceback.print_exc()
             return self.error_response(str(e))
 
-    def get_finger_states(self, hand_landmarks, w, h):
-        """Получает состояние пальцев"""
-        finger_tips = [4, 8, 12, 16, 20]
-        finger_pips = [3, 6, 10, 14, 18]
-
-        finger_states = []
-        tip_positions = []
-
-        for i in range(5):
-            tip = hand_landmarks.landmark[finger_tips[i]]
-            pip = hand_landmarks.landmark[finger_pips[i]]
-            x, y = int(tip.x * w), int(tip.y * h)
-            tip_positions.append((x, y))
-
-            if i == 0:  # Большой палец
-                index_mcp = hand_landmarks.landmark[5]
-                dist = abs(tip.x - index_mcp.x) + abs(tip.y - index_mcp.y)
-                finger_states.append(dist > 0.15)
-            else:
-                finger_states.append(tip.y < pip.y - 0.02)
-
-        return finger_states, tip_positions
-
     def process_hand(self, results, display_frame, h, w):
         """Обрабатывает кадр с рукой"""
         for hand_landmarks in results.multi_hand_landmarks:
@@ -180,74 +131,50 @@ class HandDetector:
                 mp_drawing_styles.get_default_hand_connections_style()
             )
 
-            finger_states, tip_positions = self.get_finger_states(hand_landmarks, w, h)
-            raised = sum(finger_states)
-            is_correct, message = self.check_exercise(finger_states)
+            # Получаем состояние пальцев
+            finger_states, tip_positions = self.current_exercise.get_finger_states(
+                hand_landmarks, (h, w, 3)
+            )
 
+            # Проверяем упражнение
+            is_correct, message = self.current_exercise.check_fingers(
+                finger_states, hand_landmarks, (h, w, 3)
+            )
+
+            # Рисуем обратную связь
+            display_frame = self.current_exercise.draw_feedback(
+                display_frame, finger_states, tip_positions, is_correct, message
+            )
+
+            raised_fingers = sum(finger_states)
             print(f"   Пальцы: {['⬆️' if s else '⬇️' for s in finger_states]}")
             print(f"   Результат: {message}")
 
-            # Рисуем точки на кончиках пальцев
-            colors = [(255, 0, 255), (255, 0, 0), (0, 255, 0), (0, 255, 255), (0, 0, 255)]
-
-            for i, (x, y) in enumerate(tip_positions):
-                # Определяем цвет в зависимости от упражнения
-                if self.current_exercise == ExerciseType.FIST:
-                    # Для кулака: зеленый если палец сжат, красный если поднят
-                    color = (0, 255, 0) if not finger_states[i] else (0, 0, 255)
-                else:  # FIST_INDEX
-                    # Для указательного пальца: зеленый если поднят, красный если сжат
-                    if i == 1:  # Указательный
-                        color = (0, 255, 0) if finger_states[i] else (0, 0, 255)
-                    else:  # Остальные пальцы
-                        color = (0, 255, 0) if not finger_states[i] else (0, 0, 255)
-
-                # Рисуем круг
-                cv2.circle(display_frame, (x, y), 20, color, -1)
-                cv2.circle(display_frame, (x, y), 20, (255, 255, 255), 2)
-
-                # Номер пальца и статус
-                status = "⬆️" if finger_states[i] else "⬇️"
-                cv2.putText(display_frame, f"{i}{status}", (x-20, y-25),
-                           cv2.FONT_HERSHEY_SIMPLEX, 0.7, (255, 255, 255), 2)
-
-            # Информация на кадре
-            cv2.rectangle(display_frame, (5, 5), (450, 130), (0, 0, 0), -1)
-            cv2.rectangle(display_frame, (5, 5), (450, 130), (255, 255, 255), 2)
-
-            ex_name = "Кулак" if self.current_exercise == ExerciseType.FIST else "Кулак + указательный"
-            cv2.putText(display_frame, f"Упражнение: {ex_name}", (15, 30),
-                       cv2.FONT_HERSHEY_SIMPLEX, 0.7, (255, 255, 255), 2)
-            cv2.putText(display_frame, f"Пальцев: {raised}/5", (15, 55),
-                       cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 255, 255), 2)
-
-            color = (0, 255, 0) if is_correct else (0, 0, 255)
-            cv2.putText(display_frame, message, (15, 85),
-                       cv2.FONT_HERSHEY_SIMPLEX, 0.7, color, 2)
-
-        return self.success_response(display_frame, True, raised, finger_states, message)
+        return self.success_response(display_frame, True, raised_fingers, finger_states, message)
 
     def no_hand_response(self, display_frame):
         """Ответ когда нет руки"""
         cv2.rectangle(display_frame, (5, 5), (200, 50), (0, 0, 0), -1)
         cv2.putText(display_frame, "❌ НЕТ РУКИ", (15, 35),
-                   cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 0, 255), 2)
+                    cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 0, 255), 2)
         return self.success_response(display_frame, False, 0, [False]*5, "Рука не обнаружена")
 
     def success_response(self, frame, hand_detected, raised, states, message):
         """Формирует успешный ответ"""
         try:
+            # Конвертируем обратно в base64
             _, buffer = cv2.imencode('.jpg', frame, [cv2.IMWRITE_JPEG_QUALITY, 80])
             frame_out = base64.b64encode(buffer).decode('utf-8')
 
             return {
-                "fist_detected": hand_detected and (raised <= 1 if self.current_exercise == ExerciseType.FIST else (states[1] and not any(states[2:]))),
+                "fist_detected": hand_detected and states[1] if self.current_exercise_id == "fist-index" else hand_detected,
                 "hand_detected": hand_detected,
                 "raised_fingers": raised,
                 "finger_states": states,
                 "message": message,
                 "processed_frame": frame_out,
-                "current_exercise": self.current_exercise.value,
+                "current_exercise": self.current_exercise_id,
+                "exercise_name": self.current_exercise.name,
                 "status": "success"
             }
         except Exception as e:
@@ -262,19 +189,49 @@ class HandDetector:
             "finger_states": [False]*5,
             "message": message,
             "processed_frame": "",
-            "current_exercise": self.current_exercise.value,
+            "current_exercise": self.current_exercise_id,
+            "exercise_name": self.current_exercise.name if self.current_exercise else "unknown",
             "status": "error"
         }
 
-# Создаем детектор
-detector = HandDetector()
+# Создаем менеджер упражнений
+exercise_manager = ExerciseManager()
 
 @app.route('/health', methods=['GET'])
 def health():
     return jsonify({
         "status": "ok",
-        "current_exercise": detector.current_exercise.value
+        "current_exercise": exercise_manager.current_exercise_id,
+        "available_exercises": exercise_manager.get_exercise_list()
     })
+
+@app.route('/exercises', methods=['GET'])
+def list_exercises():
+    """Возвращает список доступных упражнений"""
+    return jsonify({
+        "exercises": exercise_manager.get_exercise_list()
+    })
+
+@app.route('/set_exercise', methods=['POST'])
+def set_exercise():
+    """Смена упражнения"""
+    try:
+        data = request.get_json()
+        exercise_id = data.get('exercise_id')
+
+        if exercise_manager.set_exercise(exercise_id):
+            return jsonify({
+                "status": "success",
+                "current_exercise": exercise_manager.current_exercise_id,
+                "exercise_name": exercise_manager.current_exercise.name
+            })
+        else:
+            return jsonify({
+                "status": "error",
+                "message": f"Exercise {exercise_id} not found"
+            }), 400
+    except Exception as e:
+        return jsonify({"error": str(e), "status": "error"}), 400
 
 @app.route('/process', methods=['POST'])
 def process_frame():
@@ -283,7 +240,15 @@ def process_frame():
         if not data:
             return jsonify({"error": "No data provided"}), 400
 
-        result = detector.process_frame(data)
+        # Проверяем, есть ли смена упражнения
+        if 'exercise_type' in data:
+            exercise_manager.set_exercise(data['exercise_type'])
+
+        frame = data.get('frame')
+        if not frame:
+            return jsonify({"error": "No frame provided"}), 400
+
+        result = exercise_manager.process_frame(frame)
         return jsonify(result)
     except Exception as e:
         print(f"❌ Ошибка в /process: {e}")
@@ -293,7 +258,7 @@ def process_frame():
             "raised_fingers": 0,
             "message": f"Server error: {str(e)}",
             "processed_frame": "",
-            "current_exercise": detector.current_exercise.value,
+            "current_exercise": exercise_manager.current_exercise_id,
             "status": "error"
         }), 500
 
@@ -309,8 +274,24 @@ def handle_disconnect():
 def handle_frame(data):
     try:
         if isinstance(data, dict):
-            result = detector.process_frame(data)
-            emit('feedback', result)
+            # Проверяем смену упражнения
+            if 'exercise_type' in data:
+                exercise_manager.set_exercise(data['exercise_type'])
+
+            frame = data.get('frame')
+            if frame:
+                result = exercise_manager.process_frame(frame)
+                emit('feedback', result)
+            else:
+                emit('feedback', {
+                    "fist_detected": False,
+                    "hand_detected": False,
+                    "raised_fingers": 0,
+                    "message": "No frame data",
+                    "processed_frame": "",
+                    "current_exercise": exercise_manager.current_exercise_id,
+                    "status": "error"
+                })
         else:
             emit('feedback', {
                 "fist_detected": False,
@@ -318,7 +299,7 @@ def handle_frame(data):
                 "raised_fingers": 0,
                 "message": "Invalid data format",
                 "processed_frame": "",
-                "current_exercise": detector.current_exercise.value,
+                "current_exercise": exercise_manager.current_exercise_id,
                 "status": "error"
             })
     except Exception as e:
@@ -326,11 +307,11 @@ def handle_frame(data):
 
 if __name__ == '__main__':
     print("=" * 60)
-    print("🤚 Python Processor")
+    print("🤚 Python Processor с модульными упражнениями")
     print("=" * 60)
     print("📡 Сервер: http://localhost:5001")
-    print("\n📋 Поддерживаемые упражнения:")
-    print("   fist - Кулак")
-    print("   fist-index - Кулак с указательным")
+    print("\n📋 Доступные упражнения:")
+    for ex in exercise_manager.get_exercise_list():
+        print(f"   - {ex['id']}: {ex['name']}")
     print("=" * 60)
     socketio.run(app, host='0.0.0.0', port=5001, debug=True, allow_unsafe_werkzeug=True)
