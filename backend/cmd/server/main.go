@@ -1,14 +1,29 @@
 package main
 
 import (
+	"lfk-backend/config"
+	"lfk-backend/internal/auth"
 	"lfk-backend/internal/handlers"
+	"lfk-backend/internal/middleware"
+	"lfk-backend/internal/repository"
 	"lfk-backend/internal/websocket"
 	"log"
+	"time"
 
 	"github.com/gin-gonic/gin"
 )
 
 func main() {
+	// Загружаем конфигурацию
+	cfg := config.LoadConfig()
+
+	// Подключаемся к БД
+	db := config.InitDB(cfg)
+	defer db.Close()
+
+	// Инициализируем JWT менеджер
+	jwtManager := auth.NewJWTManager(cfg.JWTSecret, 24*time.Hour)
+
 	// Инициализация роутера
 	router := gin.Default()
 
@@ -16,33 +31,53 @@ func main() {
 	hub := websocket.NewHub()
 	go hub.Run()
 
-	// Создаем обработчик с URL Python сервера
-	exerciseHandler := handlers.NewExerciseHandler(hub, "http://localhost:5001")
+	// Инициализируем репозитории
+	userRepo := repository.NewUserRepository(db)
 
-	// Маршруты API
-	api := router.Group("/api")
+	// Создаем обработчики
+	exerciseHandler := handlers.NewExerciseHandler(hub, "http://localhost:5001")
+	userHandler := handlers.NewUserHandler(userRepo, jwtManager)
+
+	// ПУБЛИЧНЫЕ МАРШРУТЫ (не требуют аутентификации)
+	public := router.Group("/api")
 	{
-		api.GET("/health", func(c *gin.Context) {
+		public.POST("/register", userHandler.Register)
+		public.POST("/login", userHandler.Login)
+		public.GET("/health", func(c *gin.Context) {
 			c.JSON(200, gin.H{"status": "ok"})
 		})
 
-		// Отдельные WebSocket эндпоинты для каждого упражнения
-		router.GET("/ws/exercise/fist", func(c *gin.Context) {
+		// Маршруты для проверки пользователей (тоже публичные)
+		public.GET("/user/check", userHandler.CheckUser)
+		public.GET("/user/check/email", userHandler.CheckEmail)
+		public.GET("/user/check/username", userHandler.CheckUsername)
+	}
+
+	// ЗАЩИЩЕННЫЕ МАРШРУТЫ (требуют JWT токен)
+	protected := router.Group("/api")
+	protected.Use(middleware.AuthMiddleware(jwtManager))
+	{
+		// Профиль пользователя
+		protected.GET("/profile", userHandler.GetProfile)
+
+		// Упражнения (REST)
+		protected.POST("/exercise/start", exerciseHandler.StartExercise)
+		protected.POST("/exercise/stop", exerciseHandler.StopExercise)
+	}
+
+	// WebSocket маршруты (тоже защищенные)
+	ws := router.Group("/ws")
+	ws.Use(middleware.AuthMiddleware(jwtManager))
+	{
+		ws.GET("/exercise/fist", func(c *gin.Context) {
 			exerciseHandler.HandleWebSocket(c.Writer, c.Request, "fist")
 		})
-
-		router.GET("/ws/exercise/fist-index", func(c *gin.Context) {
+		ws.GET("/exercise/fist-index", func(c *gin.Context) {
 			exerciseHandler.HandleWebSocket(c.Writer, c.Request, "fist-index")
 		})
-
-		// Можно добавить другие упражнения
-		router.GET("/ws/exercise/fist-palm", func(c *gin.Context) {
+		ws.GET("/exercise/fist-palm", func(c *gin.Context) {
 			exerciseHandler.HandleWebSocket(c.Writer, c.Request, "fist-palm")
 		})
-
-		// REST эндпоинты
-		api.POST("/exercise/start", exerciseHandler.StartExercise)
-		api.POST("/exercise/stop", exerciseHandler.StopExercise)
 	}
 
 	log.Println("Server starting on :8080")
