@@ -41,6 +41,15 @@ func NewExerciseHandler(hub *websocket.Hub, pythonURL string) *ExerciseHandler {
 func (h *ExerciseHandler) HandleWebSocket(w http.ResponseWriter, r *http.Request, exerciseId string) {
 	log.Printf("WebSocket connection request for exercise: %s", exerciseId)
 
+	log.Printf("=== WEBSOCKET HANDLER ===")
+	log.Printf("Exercise ID: %s", exerciseId)
+	log.Printf("URL: %s", r.URL.String())
+	log.Printf("Token from query: %s", r.URL.Query().Get("token"))
+
+	// Проверяем, прошел ли пользователь через middleware
+	userID := r.Context().Value("user_id")
+	log.Printf("User ID from context: %v", userID)
+
 	conn, err := upgrader.Upgrade(w, r, nil)
 	if err != nil {
 		log.Println("Failed to upgrade connection:", err)
