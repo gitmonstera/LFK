@@ -4,15 +4,7 @@ import time
 from .base_exercise import BaseExercise
 
 class FistPalmExercise(BaseExercise):
-    """Упражнение: Кулак-ладонь (для кровообращения)
-
-    Алгоритм:
-    1. ОЖИДАНИЕ: ждем пока пользователь сожмет кулак (≤2 пальцев поднято)
-    2. СЧЕТ: держим кулак 3 секунды (обратный отсчет 3-2-1)
-    3. ОЖИДАНИЕ: ждем пока пользователь разожмет ладонь (≥3 пальцев поднято)
-    4. СЧЕТ: держим ладонь 3 секунды (обратный отсчет 3-2-1)
-    5. Повторяем цикл 5 раз
-    """
+    """Упражнение: Кулак-ладонь (для кровообращения)"""
 
     def __init__(self):
         super().__init__()
@@ -43,7 +35,7 @@ class FistPalmExercise(BaseExercise):
         self.state = "waiting_fist"
         self.state_start_time = time.time()
         self.current_cycle = 0
-        self.countdown = 3
+        self.countdown = self.hold_duration
         self.last_countdown_update = time.time()
         self.structured_data = self._get_structured_data()
         print(f"🔄 Упражнение сброшено в начальное состояние")
@@ -115,7 +107,6 @@ class FistPalmExercise(BaseExercise):
         # Машина состояний
         if self.state == "waiting_fist":
             # Ждем пока пользователь сожмет кулак
-            print(f"   🔍 Ожидание кулака: is_fist={is_fist}")
             if is_fist:
                 self.state = "holding_fist"
                 self.state_start_time = current_time
@@ -127,7 +118,6 @@ class FistPalmExercise(BaseExercise):
 
         elif self.state == "holding_fist":
             # Держим кулак с обратным отсчетом
-            print(f"   🔍 Удержание кулака: is_fist={is_fist}")
             if not is_fist:
                 # Если разжал раньше времени - возвращаемся
                 self.state = "waiting_fist"
@@ -151,7 +141,6 @@ class FistPalmExercise(BaseExercise):
 
         elif self.state == "waiting_palm":
             # Ждем пока пользователь разожмет ладонь
-            print(f"   🔍 Ожидание ладони: is_palm={is_palm}")
             if is_palm:
                 self.state = "holding_palm"
                 self.state_start_time = current_time
@@ -163,7 +152,6 @@ class FistPalmExercise(BaseExercise):
 
         elif self.state == "holding_palm":
             # Держим ладонь с обратным отсчетом
-            print(f"   🔍 Удержание ладони: is_palm={is_palm}")
             if not is_palm:
                 # Если сжал раньше времени - возвращаемся
                 self.state = "waiting_palm"
@@ -186,6 +174,7 @@ class FistPalmExercise(BaseExercise):
                     if self.current_cycle >= self.total_cycles:
                         self.state = "completed"
                         print(f"   🎉 УПРАЖНЕНИЕ ЗАВЕРШЕНО!")
+                        # Здесь мы НЕ сбрасываем, остаемся в completed
                     else:
                         self.state = "waiting_fist"
                         self.state_start_time = current_time
@@ -193,9 +182,10 @@ class FistPalmExercise(BaseExercise):
                         print(f"   🔄 Начинаем цикл {self.current_cycle + 1}/{self.total_cycles}")
 
         elif self.state == "completed":
-            # Если упражнение завершено, ничего не делаем
-            print(f"   🔍 Упражнение завершено")
-            pass
+            # Если упражнение завершено, НИЧЕГО НЕ ДЕЛАЕМ
+            # Клиент должен сам запросить сброс или переподключиться
+            print(f"   🔍 Упражнение завершено, ожидание новой сессии")
+            # Не меняем состояние, просто возвращаем сообщение о завершении
 
         # Обновляем структурированные данные
         self.structured_data = self._get_structured_data()
@@ -218,7 +208,7 @@ class FistPalmExercise(BaseExercise):
                     colors.append((0, 0, 255))  # Красный - ошибка
                 else:
                     colors.append((0, 255, 0))  # Зеленый - правильно
-            else:  # waiting_palm, holding_palm
+            else:  # waiting_palm, holding_palm, completed
                 # В фазе ладони: пальцы должны быть подняты
                 if is_raised:
                     colors.append((0, 255, 0))  # Зеленый - правильно

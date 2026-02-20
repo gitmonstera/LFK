@@ -39,6 +39,7 @@ class ExerciseManager:
         self.exercises = {}
         self.current_exercise = None
         self.current_exercise_id = "fist"
+        self.connection_count = 0
 
         # Загружаем все доступные упражнения
         self.load_exercises()
@@ -77,10 +78,10 @@ class ExerciseManager:
             return False
 
     def reset_current_exercise(self):
-        """Сбрасывает текущее упражнение (только по запросу)"""
+        """Сбрасывает текущее упражнение в начальное состояние"""
         if self.current_exercise and hasattr(self.current_exercise, 'reset'):
             self.current_exercise.reset()
-            print(f"🔄 Упражнение сброшено по запросу")
+            print(f"🔄 Текущее упражнение сброшено")
             return True
         return False
 
@@ -202,8 +203,6 @@ class ExerciseManager:
                 structured = self.current_exercise.get_structured_data()
                 if structured:
                     response["structured"] = structured
-                    # Убираем лишний вывод, чтобы не засорять логи
-                    # print(f"📊 Добавлены структурированные данные")
 
             return response
         except Exception as e:
@@ -313,7 +312,9 @@ def process_frame():
 @socketio.on('connect')
 def handle_connect():
     print('🔌 Клиент подключен')
-    # НЕ сбрасываем упражнение при подключении!
+    # Сбрасываем упражнение при новом подключении
+    exercise_manager.reset_current_exercise()
+    print('🔄 Упражнение сброшено для новой сессии')
 
 @socketio.on('disconnect')
 def handle_disconnect():

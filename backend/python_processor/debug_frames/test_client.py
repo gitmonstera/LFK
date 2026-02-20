@@ -6,6 +6,7 @@ import numpy as np
 import time
 import requests
 import urllib.parse
+from datetime import datetime, timedelta
 
 # URL для разных упражнений
 EXERCISE_URLS = {
@@ -30,71 +31,115 @@ EXERCISE_TYPES = {
 auth_token = None
 user_info = None
 
+# Цвета для красивого вывода
+class Colors:
+    HEADER = '\033[95m'
+    BLUE = '\033[94m'
+    GREEN = '\033[92m'
+    YELLOW = '\033[93m'
+    RED = '\033[91m'
+    CYAN = '\033[96m'
+    MAGENTA = '\033[95m'
+    END = '\033[0m'
+    BOLD = '\033[1m'
+
+def clear_screen():
+    """Очистка экрана"""
+    print("\033[2J\033[H", end="")
+
+def print_header(text):
+    """Печать заголовка"""
+    print(f"\n{Colors.BOLD}{Colors.HEADER}{'='*60}{Colors.END}")
+    print(f"{Colors.BOLD}{Colors.HEADER}{text}{Colors.END}")
+    print(f"{Colors.BOLD}{Colors.HEADER}{'='*60}{Colors.END}")
+
 def print_menu():
     """Вывод главного меню"""
-    global user_info
-    print("\n" + "=" * 60)
-    print("🎮 ГЛАВНОЕ МЕНЮ")
-    print("=" * 60)
+    clear_screen()
+    print_header("🎮 ГЛАВНОЕ МЕНЮ")
+
     if auth_token and user_info:
-        print(f"✅ Авторизован: {user_info.get('username', '')}")
+        print(f"{Colors.GREEN}✅ Авторизован: {user_info.get('username', '')}{Colors.END}")
     else:
-        print("❌ Не авторизован")
-    print("-" * 60)
-    print("1 - Войти в систему")
-    print("2 - Зарегистрироваться")
+        print(f"{Colors.RED}❌ Не авторизован{Colors.END}")
+
+    print(f"\n{Colors.BOLD}1{Colors.END} - Войти в систему")
+    print(f"{Colors.BOLD}2{Colors.END} - Зарегистрироваться")
+
     if auth_token and user_info:
-        print("3 - Выбрать упражнение")
-        print("4 - Мой профиль")
-    print("q - Выход")
+        print(f"{Colors.BOLD}3{Colors.END} - Выбрать упражнение")
+        print(f"{Colors.BOLD}4{Colors.END} - Мой профиль")
+        print(f"{Colors.BOLD}5{Colors.END} - Статистика")
+
+    print(f"{Colors.BOLD}q{Colors.END} - Выход")
+    print("=" * 60)
+
+def print_stats_menu():
+    """Вывод меню статистики"""
+    clear_screen()
+    print_header("📊 СТАТИСТИКА")
+    print(f"{Colors.BOLD}1{Colors.END} - Общая статистика")
+    print(f"{Colors.BOLD}2{Colors.END} - Статистика за сегодня")
+    print(f"{Colors.BOLD}3{Colors.END} - Статистика за неделю")
+    print(f"{Colors.BOLD}4{Colors.END} - Статистика за месяц")
+    print(f"{Colors.BOLD}5{Colors.END} - Статистика по упражнениям")
+    print(f"{Colors.BOLD}6{Colors.END} - История тренировок")
+    print(f"{Colors.BOLD}b{Colors.END} - Назад в главное меню")
     print("=" * 60)
 
 def print_exercise_menu():
     """Вывод меню упражнений"""
-    print("\n" + "=" * 60)
-    print("🎮 ВЫБОР УПРАЖНЕНИЯ")
-    print("=" * 60)
+    clear_screen()
+    print_header("🎮 ВЫБОР УПРАЖНЕНИЯ")
     for key, name in EXERCISE_NAMES.items():
-        print(f"   {key} - {name}")
-    print("   b - Назад в главное меню")
+        print(f"{Colors.BOLD}{key}{Colors.END} - {name}")
+    print(f"{Colors.BOLD}b{Colors.END} - Назад в главное меню")
     print("=" * 60)
 
 def login():
     """Вход в систему"""
     global auth_token, user_info
 
-    print("\n🔐 ВХОД В СИСТЕМУ")
+    clear_screen()
+    print_header("🔐 ВХОД В СИСТЕМУ")
+
     email = input("Email: ").strip()
     password = input("Пароль: ").strip()
 
     try:
         response = requests.post(
             "http://localhost:8080/api/login",
-            json={"email": email, "password": password}
+            json={"email": email, "password": password},
+            timeout=5
         )
 
         if response.status_code == 200:
             data = response.json()
             auth_token = data["token"]
             user_info = data["user"]
-            print(f"✅ Успешный вход! Добро пожаловать, {user_info['username']}!")
-            print(f"🔑 Токен получен (первые 20 символов): {auth_token[:20]}...")
+            print(f"\n{Colors.GREEN}✅ Успешный вход! Добро пожаловать, {user_info['username']}!{Colors.END}")
+            time.sleep(1)
             return True
         else:
             error = response.json().get("error", "Unknown error")
-            print(f"❌ Ошибка входа: {error}")
+            print(f"\n{Colors.RED}❌ Ошибка входа: {error}{Colors.END}")
+            input("\nНажмите Enter для продолжения...")
             return False
 
     except requests.exceptions.ConnectionError:
-        print("❌ Не удалось подключиться к серверу. Убедитесь, что сервер запущен.")
+        print(f"\n{Colors.RED}❌ Не удалось подключиться к серверу. Убедитесь, что сервер запущен.{Colors.END}")
+        input("\nНажмите Enter для продолжения...")
         return False
     except Exception as e:
-        print(f"❌ Ошибка: {e}")
+        print(f"\n{Colors.RED}❌ Ошибка: {e}{Colors.END}")
+        input("\nНажмите Enter для продолжения...")
         return False
 
 def register():
     """Регистрация нового пользователя"""
-    print("\n📝 РЕГИСТРАЦИЯ НОВОГО ПОЛЬЗОВАТЕЛЯ")
+    clear_screen()
+    print_header("📝 РЕГИСТРАЦИЯ")
+
     username = input("Имя пользователя: ").strip()
     email = input("Email: ").strip()
     password = input("Пароль: ").strip()
@@ -114,22 +159,27 @@ def register():
     try:
         response = requests.post(
             "http://localhost:8080/api/register",
-            json=data
+            json=data,
+            timeout=5
         )
 
         if response.status_code == 201:
-            print(f"✅ Регистрация успешна! Теперь можете войти.")
+            print(f"\n{Colors.GREEN}✅ Регистрация успешна! Теперь можете войти.{Colors.END}")
+            input("\nНажмите Enter для продолжения...")
             return True
         else:
             error = response.json().get("error", "Unknown error")
-            print(f"❌ Ошибка регистрации: {error}")
+            print(f"\n{Colors.RED}❌ Ошибка регистрации: {error}{Colors.END}")
+            input("\nНажмите Enter для продолжения...")
             return False
 
     except requests.exceptions.ConnectionError:
-        print("❌ Не удалось подключиться к серверу. Убедитесь, что сервер запущен.")
+        print(f"\n{Colors.RED}❌ Не удалось подключиться к серверу. Убедитесь, что сервер запущен.{Colors.END}")
+        input("\nНажмите Enter для продолжения...")
         return False
     except Exception as e:
-        print(f"❌ Ошибка: {e}")
+        print(f"\n{Colors.RED}❌ Ошибка: {e}{Colors.END}")
+        input("\nНажмите Enter для продолжения...")
         return False
 
 def get_profile():
@@ -137,95 +187,455 @@ def get_profile():
     global auth_token
 
     if not auth_token:
-        print("❌ Не авторизован")
+        print(f"{Colors.RED}❌ Не авторизован{Colors.END}")
         return
 
     try:
         response = requests.get(
             "http://localhost:8080/api/profile",
-            headers={"Authorization": f"Bearer {auth_token}"}
+            headers={"Authorization": f"Bearer {auth_token}"},
+            timeout=5
         )
 
         if response.status_code == 200:
             profile = response.json()
-            print("\n👤 ПРОФИЛЬ ПОЛЬЗОВАТЕЛЯ")
-            print("=" * 40)
+            clear_screen()
+            print_header("👤 ПРОФИЛЬ ПОЛЬЗОВАТЕЛЯ")
             print(f"ID: {profile.get('id')}")
             print(f"Username: {profile.get('username')}")
             print(f"Email: {profile.get('email')}")
             print(f"Имя: {profile.get('first_name', '')}")
             print(f"Фамилия: {profile.get('last_name', '')}")
-            print(f"Дата регистрации: {profile.get('created_at')}")
+            print(f"Дата регистрации: {profile.get('created_at', '')[:10]}")
             print("=" * 40)
         else:
-            print(f"❌ Ошибка получения профиля: {response.status_code}")
+            print(f"{Colors.RED}❌ Ошибка получения профиля: {response.status_code}{Colors.END}")
+
+        input("\nНажмите Enter для продолжения...")
 
     except Exception as e:
-        print(f"❌ Ошибка: {e}")
+        print(f"{Colors.RED}❌ Ошибка: {e}{Colors.END}")
+        input("\nНажмите Enter для продолжения...")
+
+# ============= ФУНКЦИИ ДЛЯ РАБОТЫ С ТРЕНИРОВКАМИ =============
+
+def start_workout():
+    """Начать новую тренировку"""
+    global auth_token
+    headers = {"Authorization": f"Bearer {auth_token}"}
+    try:
+        response = requests.post(
+            "http://localhost:8080/api/workout/start",
+            headers=headers,
+            timeout=5
+        )
+        if response.status_code == 200:
+            data = response.json()
+            return data['id']
+        else:
+            print(f"{Colors.RED}❌ Ошибка начала тренировки: {response.status_code}{Colors.END}")
+            return None
+    except Exception as e:
+        print(f"{Colors.RED}❌ Ошибка: {e}{Colors.END}")
+        return None
+
+def add_exercise_set(session_id, exercise_id, repetitions, duration, accuracy):
+    """Добавить выполненное упражнение"""
+    global auth_token
+    headers = {"Authorization": f"Bearer {auth_token}"}
+    data = {
+        "session_id": session_id,
+        "exercise_id": exercise_id,
+        "actual_repetitions": repetitions,
+        "actual_duration": duration,
+        "accuracy_score": accuracy
+    }
+    try:
+        response = requests.post(
+            "http://localhost:8080/api/workout/exercise",
+            headers=headers,
+            json=data,
+            timeout=5
+        )
+        return response.status_code == 200
+    except Exception as e:
+        print(f"{Colors.RED}❌ Ошибка: {e}{Colors.END}")
         return False
+
+def end_workout(session_id):
+    """Завершить тренировку"""
+    global auth_token
+    headers = {"Authorization": f"Bearer {auth_token}"}
+    data = {"session_id": session_id}
+    try:
+        response = requests.post(
+            "http://localhost:8080/api/workout/end",
+            headers=headers,
+            json=data,
+            timeout=5
+        )
+        return response.status_code == 200
+    except Exception as e:
+        print(f"{Colors.RED}❌ Ошибка: {e}{Colors.END}")
+        return False
+
+# ============= ФУНКЦИИ ДЛЯ СТАТИСТИКИ =============
+
+def get_overall_stats():
+    """Получение общей статистики"""
+    global auth_token
+
+    if not auth_token:
+        return
+
+    try:
+        response = requests.get(
+            "http://localhost:8080/api/stats/overall",
+            headers={"Authorization": f"Bearer {auth_token}"},
+            timeout=5
+        )
+
+        if response.status_code == 200:
+            stats = response.json()
+            clear_screen()
+            print_header("📊 ОБЩАЯ СТАТИСТИКА")
+
+            if 'message' in stats and stats['message'] == 'No stats available':
+                print("Нет данных для отображения")
+            else:
+                print(f"Всего тренировок: {stats.get('total_sessions', 0)}")
+                print(f"Всего упражнений: {stats.get('total_exercises', 0)}")
+                print(f"Всего повторений: {stats.get('total_repetitions', 0)}")
+
+                total_duration = stats.get('total_duration', 0)
+                hours = total_duration // 3600
+                minutes = (total_duration % 3600) // 60
+                print(f"Общее время: {hours} ч {minutes} мин")
+
+                print(f"Уникальных упражнений: {stats.get('unique_exercises', 0)}")
+                print(f"Текущая серия: {stats.get('current_streak', 0)} дней")
+                print(f"Максимальная серия: {stats.get('longest_streak', 0)} дней")
+
+                last_workout = stats.get('last_workout_at')
+                if last_workout:
+                    if isinstance(last_workout, dict):
+                        if last_workout.get('Valid'):
+                            date_str = last_workout.get('Time', '')
+                            if date_str:
+                                print(f"Последняя тренировка: {date_str[:10]}")
+                    elif isinstance(last_workout, str):
+                        print(f"Последняя тренировка: {last_workout[:10]}")
+            print("=" * 40)
+        else:
+            print(f"{Colors.RED}❌ Ошибка получения статистики: {response.status_code}{Colors.END}")
+
+        input("\nНажмите Enter для продолжения...")
+
+    except Exception as e:
+        print(f"{Colors.RED}❌ Ошибка: {e}{Colors.END}")
+        input("\nНажмите Enter для продолжения...")
+
+def get_daily_stats():
+    """Получение статистики за сегодня"""
+    global auth_token
+
+    if not auth_token:
+        return
+
+    try:
+        today = datetime.now().strftime("%Y-%m-%d")
+        response = requests.get(
+            f"http://localhost:8080/api/stats/daily?date={today}",
+            headers={"Authorization": f"Bearer {auth_token}"},
+            timeout=5
+        )
+
+        if response.status_code == 200:
+            stats = response.json()
+            clear_screen()
+            print_header(f"📊 СТАТИСТИКА ЗА {today}")
+
+            if 'message' in stats and stats['message'] == 'No data for this date':
+                print("Нет данных за сегодня")
+            else:
+                print(f"Тренировок: {stats.get('total_sessions', 0)}")
+                print(f"Упражнений: {stats.get('total_exercises', 0)}")
+
+                duration = stats.get('total_duration_seconds', 0)
+                minutes = duration // 60
+                seconds = duration % 60
+                print(f"Время: {minutes} мин {seconds} сек")
+
+                print(f"Сожжено калорий: {stats.get('calories_burned', 0):.1f}")
+                print(f"День выполнен: {'✅' if stats.get('completed', False) else '❌'}")
+            print("=" * 40)
+        else:
+            print(f"{Colors.RED}❌ Ошибка получения статистики: {response.status_code}{Colors.END}")
+
+        input("\nНажмите Enter для продолжения...")
+
+    except Exception as e:
+        print(f"{Colors.RED}❌ Ошибка: {e}{Colors.END}")
+        input("\nНажмите Enter для продолжения...")
+
+def get_weekly_stats():
+    """Получение статистики за неделю"""
+    global auth_token
+
+    if not auth_token:
+        return
+
+    try:
+        response = requests.get(
+            "http://localhost:8080/api/stats/weekly",
+            headers={"Authorization": f"Bearer {auth_token}"},
+            timeout=5
+        )
+
+        if response.status_code == 200:
+            stats = response.json()
+            clear_screen()
+            print_header("📊 СТАТИСТИКА ЗА НЕДЕЛЮ")
+
+            if not stats:
+                print("Нет данных за неделю")
+            else:
+                total_sessions = 0
+                total_duration = 0
+                total_exercises = 0
+
+                for day in stats:
+                    date = day.get('stat_date', '')
+                    if isinstance(date, dict):
+                        date_str = date.get('Time', '')[:10] if date.get('Time') else ''
+                    else:
+                        date_str = str(date)[:10] if date else ''
+
+                    sessions = day.get('total_sessions', 0)
+                    duration = day.get('total_duration_seconds', 0)
+                    exercises = day.get('total_exercises', 0)
+                    completed = day.get('completed', False)
+
+                    total_sessions += sessions
+                    total_duration += duration
+                    total_exercises += exercises
+
+                    status = "✅" if completed else "❌"
+                    minutes = duration // 60
+                    print(f"{date_str}: {status} {sessions} тр, {exercises} упр, {minutes} мин")
+
+                print("-" * 40)
+                hours = total_duration // 3600
+                minutes = (total_duration % 3600) // 60
+                print(f"ИТОГО: {total_sessions} тренировок, {total_exercises} упражнений")
+                print(f"ВСЕГО ВРЕМЕНИ: {hours} ч {minutes} мин")
+            print("=" * 60)
+        else:
+            print(f"{Colors.RED}❌ Ошибка получения статистики: {response.status_code}{Colors.END}")
+
+        input("\nНажмите Enter для продолжения...")
+
+    except Exception as e:
+        print(f"{Colors.RED}❌ Ошибка: {e}{Colors.END}")
+        input("\nНажмите Enter для продолжения...")
+
+def get_monthly_stats():
+    """Получение статистики за месяц"""
+    global auth_token
+
+    if not auth_token:
+        return
+
+    try:
+        response = requests.get(
+            "http://localhost:8080/api/stats/monthly",
+            headers={"Authorization": f"Bearer {auth_token}"},
+            timeout=5
+        )
+
+        if response.status_code == 200:
+            stats = response.json()
+            clear_screen()
+            print_header("📊 СТАТИСТИКА ЗА МЕСЯЦ")
+
+            if not stats:
+                print("Нет данных за месяц")
+            else:
+                # Группировка по неделям
+                weeks = {}
+                for day in stats:
+                    date = day.get('stat_date', '')
+                    if isinstance(date, dict):
+                        date_str = date.get('Time', '')[:10] if date.get('Time') else ''
+                    else:
+                        date_str = str(date)[:10] if date else ''
+
+                    try:
+                        week_num = datetime.fromisoformat(date_str).isocalendar()[1]
+                        if week_num not in weeks:
+                            weeks[week_num] = {
+                                'sessions': 0,
+                                'exercises': 0,
+                                'duration': 0
+                            }
+                        weeks[week_num]['sessions'] += day.get('total_sessions', 0)
+                        weeks[week_num]['exercises'] += day.get('total_exercises', 0)
+                        weeks[week_num]['duration'] += day.get('total_duration_seconds', 0)
+                    except:
+                        pass
+
+                for week_num, data in weeks.items():
+                    hours = data['duration'] // 3600
+                    minutes = (data['duration'] % 3600) // 60
+                    print(f"Неделя {week_num}: {data['sessions']} тр, {data['exercises']} упр, {hours} ч {minutes} мин")
+            print("=" * 60)
+        else:
+            print(f"{Colors.RED}❌ Ошибка получения статистики: {response.status_code}{Colors.END}")
+
+        input("\nНажмите Enter для продолжения...")
+
+    except Exception as e:
+        print(f"{Colors.RED}❌ Ошибка: {e}{Colors.END}")
+        input("\nНажмите Enter для продолжения...")
+
+def get_exercise_stats():
+    """Получение статистики по упражнениям"""
+    global auth_token
+
+    if not auth_token:
+        return
+
+    try:
+        response = requests.get(
+            "http://localhost:8080/api/stats/exercises",
+            headers={"Authorization": f"Bearer {auth_token}"},
+            timeout=5
+        )
+
+        if response.status_code == 200:
+            stats = response.json()
+            clear_screen()
+            print_header("📊 СТАТИСТИКА ПО УПРАЖНЕНИЯМ")
+
+            if not stats:
+                print("Нет данных по упражнениям")
+            else:
+                for ex in stats:
+                    print(f"\n🏋️ {ex.get('exercise_name', 'Неизвестно')}")
+                    print(f"  Сессий: {ex.get('total_sessions', 0)}")
+                    print(f"  Повторений: {ex.get('total_repetitions', 0)}")
+
+                    duration = ex.get('total_duration', 0)
+                    minutes = duration // 60
+                    print(f"  Время: {minutes} мин")
+
+                    if ex.get('best_accuracy'):
+                        print(f"  Лучшая точность: {ex.get('best_accuracy'):.1f}%")
+                    if ex.get('avg_accuracy'):
+                        print(f"  Средняя точность: {ex.get('avg_accuracy'):.1f}%")
+
+                    last = ex.get('last_performed_at')
+                    if last:
+                        if isinstance(last, dict):
+                            if last.get('Valid'):
+                                date_str = last.get('Time', '')
+                                if date_str:
+                                    print(f"  Последний раз: {date_str[:10]}")
+                        elif isinstance(last, str):
+                            print(f"  Последний раз: {last[:10]}")
+            print("=" * 60)
+        else:
+            print(f"{Colors.RED}❌ Ошибка получения статистики: {response.status_code}{Colors.END}")
+
+        input("\nНажмите Enter для продолжения...")
+
+    except Exception as e:
+        print(f"{Colors.RED}❌ Ошибка: {e}{Colors.END}")
+        input("\nНажмите Enter для продолжения...")
+
+def get_workout_history():
+    """Получение истории тренировок"""
+    global auth_token
+
+    if not auth_token:
+        return
+
+    try:
+        response = requests.get(
+            "http://localhost:8080/api/workout/history",
+            headers={"Authorization": f"Bearer {auth_token}"},
+            timeout=5
+        )
+
+        if response.status_code == 200:
+            history = response.json()
+            clear_screen()
+            print_header("📋 ИСТОРИЯ ТРЕНИРОВОК")
+
+            if not history:
+                print("Нет данных о тренировках")
+            else:
+                for i, workout in enumerate(history, 1):
+                    date = workout.get('started_at', '')
+                    if isinstance(date, dict):
+                        date_str = date.get('Time', '')[:10] if date.get('Time') else ''
+                    else:
+                        date_str = str(date)[:10] if date else ''
+
+                    exercises = workout.get('total_exercises', 0)
+                    reps = workout.get('total_reps', 0)
+                    duration = workout.get('total_duration', 0)
+                    accuracy = workout.get('avg_accuracy', 0)
+
+                    minutes = duration // 60
+                    print(f"\n{i}. {date_str}")
+                    print(f"   Упражнений: {exercises}, Повторений: {reps}")
+                    print(f"   Время: {minutes} мин, Точность: {accuracy:.1f}%")
+
+                    # Показываем детали упражнений
+                    for ex in workout.get('exercises', []):
+                        ex_name = ex.get('name', 'Неизвестно')
+                        ex_reps = ex.get('repetitions', 0)
+                        print(f"   - {ex_name}: {ex_reps} раз")
+            print("=" * 60)
+        else:
+            print(f"{Colors.RED}❌ Ошибка получения истории: {response.status_code}{Colors.END}")
+
+        input("\nНажмите Enter для продолжения...")
+
+    except Exception as e:
+        print(f"{Colors.RED}❌ Ошибка: {e}{Colors.END}")
+        input("\nНажмите Enter для продолжения...")
+
+# ============= ФУНКЦИИ ОТОБРАЖЕНИЯ УПРАЖНЕНИЙ =============
 
 def display_fist_palm_progress(data):
     """Отображает прогресс для упражнения Кулак-ладонь"""
-    if 'structured' not in data:
-        print("❌ structured data отсутствует в ответе!")
-        return
+    clear_screen()
 
-    structured = data['structured']
+    structured = data.get('structured', {})
 
-    # Если structured данные пустые или None
-    if not structured or all(v is None for v in structured.values()):
-        print("\n⚠️ Structured данные пусты (сервер не инициализировал состояние)")
-        return
-
-    # Безопасно получаем данные с проверкой на None и тип
-    state = structured.get('state')
-    # Если state не строка или None, преобразуем в строку
+    # Получаем данные с безопасной обработкой
+    state = structured.get('state', 'unknown')
     if state is None:
         state = 'unknown'
-    elif not isinstance(state, str):
-        state = str(state)
 
-    state_name = structured.get('state_name') or ''
-    if not isinstance(state_name, str):
-        state_name = str(state_name)
-
-    current_cycle = structured.get('current_cycle')
+    current_cycle = structured.get('current_cycle', 0)
     if current_cycle is None:
         current_cycle = 0
-    else:
-        try:
-            current_cycle = int(current_cycle)
-        except:
-            current_cycle = 0
 
-    total_cycles = structured.get('total_cycles') or 5
-    try:
-        total_cycles = int(total_cycles)
-    except:
+    total_cycles = structured.get('total_cycles', 5)
+    if total_cycles is None:
         total_cycles = 5
 
     countdown = structured.get('countdown')
-    if countdown is not None:
-        try:
-            countdown = int(countdown)
-        except:
-            countdown = None
-
-    progress = structured.get('progress_percent') or 0
-    try:
-        progress = float(progress)
-    except:
+    progress = structured.get('progress_percent', 0)
+    if progress is None:
         progress = 0
 
-    message = structured.get('message', data.get('message', ''))
-    if not isinstance(message, str):
-        message = str(message)
+    message = data.get('message', '')
 
-    # Очищаем экран для отображения прогресса
-    print("\033[2J\033[H", end="")  # Очистка экрана
-    print("=" * 60)
-    print(f"🎯 {EXERCISE_NAMES['3']}")
-    print("=" * 60)
+    print_header(f"🎯 {EXERCISE_NAMES['3']}")
 
     # Статус руки
     hand = data.get('hand_detected', False)
@@ -237,8 +647,8 @@ def display_fist_palm_progress(data):
     if finger_states:
         finger_names = ["Большой", "Указат", "Средний", "Безым", "Мизинец"]
         finger_status = []
-        for i, state in enumerate(finger_states):
-            if state:
+        for i, s in enumerate(finger_states):
+            if s:
                 finger_status.append(f"{finger_names[i]}:⬆️")
             else:
                 finger_status.append(f"{finger_names[i]}:⬇️")
@@ -246,7 +656,7 @@ def display_fist_palm_progress(data):
 
     print("-" * 60)
 
-    # Отображение шагов для Кулак-ладонь
+    # Отображение шагов
     steps = [
         {"name": "Сожмите кулак", "state": "waiting_fist"},
         {"name": "Держите кулак", "state": "holding_fist"},
@@ -266,36 +676,38 @@ def display_fist_palm_progress(data):
     # Отображаем все шаги
     for i, step in enumerate(steps):
         if i < current_step_index:
-            # Пройденные шаги
-            print(f"  ✅ {step['name']}")
+            print(f"  {Colors.GREEN}✅ {step['name']}{Colors.END}")
         elif i == current_step_index:
-            # Текущий шаг
             if "holding" in str(state) and countdown is not None:
-                print(f"  ⏳ {step['name']} [{countdown}с]")
+                print(f"  {Colors.YELLOW}▶️ {step['name']} [{countdown}с]{Colors.END}")
             else:
-                print(f"  ⏳ {step['name']}")
+                print(f"  {Colors.YELLOW}▶️ {step['name']}{Colors.END}")
         else:
-            # Будущие шаги
             print(f"  ⬜ {step['name']}")
 
     print(f"\n🔄 Цикл: {current_cycle}/{total_cycles}")
 
-    # Прогресс-бар для удержания
+    # Прогресс-бар
     if "holding" in str(state) and countdown is not None:
         bar_length = 30
         filled = int(progress / 100 * bar_length)
         bar = "█" * filled + "░" * (bar_length - filled)
-        print(f"\n⏱️  Осталось: {countdown}с [{bar}] {progress:.0f}%")
+        print(f"\n{Colors.CYAN}⏱️  Осталось: {countdown}с [{bar}] {progress:.0f}%{Colors.END}")
 
-    print(f"\n📢 {message}")
+    # Сообщение
+    if "🎉" in message:
+        print(f"\n{Colors.GREEN}{message}{Colors.END}")
+    elif "❌" in message:
+        print(f"\n{Colors.RED}{message}{Colors.END}")
+    else:
+        print(f"\n{Colors.YELLOW}{message}{Colors.END}")
+
     print("-" * 60)
 
 def display_regular_exercise(data, exercise_name):
     """Отображает обычное упражнение"""
-    print("\033[2J\033[H", end="")  # Очистка экрана
-    print("=" * 60)
-    print(f"🎯 {exercise_name}")
-    print("=" * 60)
+    clear_screen()
+    print_header(f"🎯 {exercise_name}")
 
     hand = data.get('hand_detected', False)
     fingers = data.get('raised_fingers', 0)
@@ -309,55 +721,69 @@ def display_regular_exercise(data, exercise_name):
     if finger_states:
         finger_names = ["Б", "У", "С", "Бз", "М"]
         status = []
-        for i, state in enumerate(finger_states):
-            if state:
-                status.append(f"{finger_names[i]}⬆️")
+        for i, s in enumerate(finger_states):
+            if s:
+                status.append(f"{Colors.GREEN}{finger_names[i]}⬆️{Colors.END}")
             else:
-                status.append(f"{finger_names[i]}⬇️")
+                status.append(f"{Colors.RED}{finger_names[i]}⬇️{Colors.END}")
         print(f"🖐️ {' | '.join(status)}")
 
-    print(f"\n📢 {msg}")
+    if "❌" in msg:
+        print(f"\n{Colors.RED}{msg}{Colors.END}")
+    elif "✅" in msg:
+        print(f"\n{Colors.GREEN}{msg}{Colors.END}")
+    else:
+        print(f"\n{Colors.YELLOW}{msg}{Colors.END}")
+
     print("-" * 60)
 
 def connect_and_run(exercise_key):
-    """Подключение и выполнение упражнения с авторизацией"""
+    """Подключение и выполнение упражнения"""
     global auth_token, user_info
 
     if not auth_token or not user_info:
-        print("❌ Необходимо войти в систему")
+        print(f"{Colors.RED}❌ Необходимо войти в систему{Colors.END}")
         return False
 
     url = EXERCISE_URLS[exercise_key]
     exercise_name = EXERCISE_NAMES[exercise_key]
     exercise_type = EXERCISE_TYPES[exercise_key]
 
+    # Начинаем тренировку
+    print(f"\n{Colors.CYAN}🔄 Начинаем тренировку...{Colors.END}")
+    session_id = start_workout()
+    if not session_id:
+        return False
+
     # Кодируем токен для URL
     encoded_token = urllib.parse.quote(auth_token)
     ws_url = f"{url}?token={encoded_token}"
 
+    print(f"{Colors.GREEN}✅ Тренировка начата, ID: {session_id}{Colors.END}")
     print(f"\n🔌 Подключение к WebSocket...")
     print(f"📋 Упражнение: {exercise_name}")
-    print(f"🔑 Тип: {exercise_type}")
     print(f"👤 Пользователь: {user_info.get('username')}")
 
     try:
         ws = websocket.create_connection(ws_url, timeout=10)
-        print("✅ WebSocket подключен успешно!")
+        print(f"{Colors.GREEN}✅ WebSocket подключен успешно!{Colors.END}")
 
         camera = cv2.VideoCapture(0)
         camera.set(cv2.CAP_PROP_FRAME_WIDTH, 640)
         camera.set(cv2.CAP_PROP_FRAME_HEIGHT, 480)
 
         if not camera.isOpened():
-            print("❌ Не удалось открыть камеру")
+            print(f"{Colors.RED}❌ Не удалось открыть камеру{Colors.END}")
             return False
 
-        print("📹 Отправка кадров... Нажмите ESC для возврата в меню")
+        print(f"\n{Colors.CYAN}📹 Отправка кадров... Нажмите ESC для выхода{Colors.END}")
         print("-" * 60)
 
         frame_count = 0
         fps_time = time.time()
         last_update_time = time.time()
+        sets_completed = 0
+        exercise_completed = False
 
         while True:
             good, img = camera.read()
@@ -365,11 +791,6 @@ def connect_and_run(exercise_key):
                 continue
 
             frame_count += 1
-
-            if frame_count % 30 == 0:
-                current_time = time.time()
-                fps = 30 / (current_time - fps_time)
-                fps_time = current_time
 
             if frame_count % 3 == 0:
                 _, buffer = cv2.imencode('.jpg', img, [cv2.IMWRITE_JPEG_QUALITY, 50])
@@ -385,12 +806,6 @@ def connect_and_run(exercise_key):
                     result = ws.recv()
                     data = json.loads(result)
 
-                    # ВСЕГДА печатаем что пришло от сервера
-                    print("\n" + "=" * 60)
-                    print("📦 ПОЛНЫЙ ОТВЕТ ОТ СЕРВЕРА:")
-                    print(json.dumps(data, indent=2, ensure_ascii=False))
-                    print("=" * 60)
-
                     if 'processed_frame' in data and data['processed_frame']:
                         frame_bytes = base64.b64decode(data['processed_frame'])
                         nparr = np.frombuffer(frame_bytes, np.uint8)
@@ -401,25 +816,37 @@ def connect_and_run(exercise_key):
                     # Обновляем отображение
                     current_time = time.time()
                     if current_time - last_update_time > 0.5:
-                        if exercise_key == '3':  # Кулак-ладонь
+                        if exercise_key == '3':
                             display_fist_palm_progress(data)
+
+                            # Проверяем завершение упражнения
+                            message = data.get('message', '')
+                            if message.startswith('🎉') and not exercise_completed:
+                                exercise_completed = True
+                                sets_completed += 1
+                                print(f"\n{Colors.GREEN}✅ ЦИКЛ {sets_completed} ЗАВЕРШЕН!{Colors.END}")
+
+                                # Сохраняем статистику
+                                if add_exercise_set(session_id, exercise_type, 5, 60, 95.0):
+                                    print(f"{Colors.GREEN}✅ Статистика сохранена!{Colors.END}")
+
+                                exercise_completed = False
                         else:
                             display_regular_exercise(data, exercise_name)
+
                         last_update_time = current_time
 
                 except websocket.WebSocketTimeoutException:
                     pass
                 except Exception as e:
-                    print(f"\n❌ Ошибка получения: {e}")
-                    import traceback
-                    traceback.print_exc()
+                    print(f"\n{Colors.RED}❌ Ошибка получения: {e}{Colors.END}")
 
             # Добавляем информацию на кадр
             cv2.putText(img, f"User: {user_info.get('username', '')}", (10, 30),
                         cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 255, 0), 2)
-            cv2.putText(img, f"Ex: {exercise_type}", (10, 55),
-                        cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 0), 2)
-            cv2.putText(img, "ESC - назад", (10, 80),
+            cv2.putText(img, f"Sets: {sets_completed}", (10, 55),
+                        cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 255, 0), 2)
+            cv2.putText(img, "ESC - exit", (10, 80),
                         cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 1)
 
             cv2.imshow('Original', img)
@@ -431,37 +858,47 @@ def connect_and_run(exercise_key):
         camera.release()
         cv2.destroyAllWindows()
         ws.close()
+
+        if sets_completed > 0:
+            print(f"\n{Colors.GREEN}📊 ИТОГО ВЫПОЛНЕНО: {sets_completed} подходов{Colors.END}")
+
+        # Завершаем тренировку
+        if end_workout(session_id):
+            print(f"{Colors.GREEN}✅ Тренировка завершена!{Colors.END}")
+
         print("\n🔌 Соединение закрыто")
+        input("\nНажмите Enter для продолжения...")
         return True
 
     except websocket.WebSocketBadStatusException as e:
-        status = str(e)
-        if "401" in status:
-            print(f"\n❌ Ошибка авторизации (401). Токен недействителен.")
+        if "401" in str(e):
+            print(f"\n{Colors.RED}❌ Ошибка авторизации. Токен недействителен.{Colors.END}")
             auth_token = None
             user_info = None
         else:
-            print(f"\n❌ Ошибка WebSocket: {e}")
+            print(f"\n{Colors.RED}❌ Ошибка WebSocket: {e}{Colors.END}")
+        input("\nНажмите Enter для продолжения...")
         return False
     except Exception as e:
-        print(f"\n❌ Ошибка: {e}")
+        print(f"\n{Colors.RED}❌ Ошибка: {e}{Colors.END}")
         import traceback
         traceback.print_exc()
+        input("\nНажмите Enter для продолжения...")
         return False
 
 def main():
     global auth_token, user_info
 
     print("=" * 60)
-    print("🎮 ТЕСТОВЫЙ КЛИЕНТ С АВТОРИЗАЦИЕЙ")
+    print("🎮 ТЕСТОВЫЙ КЛИЕНТ ДЛЯ LFK")
     print("=" * 60)
 
     while True:
         print_menu()
-        choice = input("Выберите действие: ").strip().lower()
+        choice = input("\nВыберите действие: ").strip().lower()
 
         if choice == 'q':
-            print("👋 До свидания!")
+            print(f"\n{Colors.BLUE}👋 До свидания!{Colors.END}")
             break
 
         elif choice == '1':
@@ -473,7 +910,7 @@ def main():
         elif choice == '3' and auth_token and user_info:
             while True:
                 print_exercise_menu()
-                ex_choice = input("Выберите упражнение (1-3, b - назад): ").strip().lower()
+                ex_choice = input("\nВыберите упражнение (1-3, b - назад): ").strip().lower()
 
                 if ex_choice == 'b':
                     break
@@ -481,18 +918,42 @@ def main():
                 if ex_choice in EXERCISE_URLS:
                     connect_and_run(ex_choice)
                 else:
-                    print("❌ Неверный выбор. Попробуйте снова.")
+                    print(f"{Colors.RED}❌ Неверный выбор{Colors.END}")
+                    time.sleep(1)
 
         elif choice == '4' and auth_token and user_info:
             get_profile()
 
-        elif choice in ['3', '4'] and (not auth_token or not user_info):
-            print("❌ Сначала войдите в систему (пункт 1)")
+        elif choice == '5' and auth_token and user_info:
+            while True:
+                print_stats_menu()
+                stat_choice = input("\nВыберите пункт статистики: ").strip().lower()
+
+                if stat_choice == 'b':
+                    break
+                elif stat_choice == '1':
+                    get_overall_stats()
+                elif stat_choice == '2':
+                    get_daily_stats()
+                elif stat_choice == '3':
+                    get_weekly_stats()
+                elif stat_choice == '4':
+                    get_monthly_stats()
+                elif stat_choice == '5':
+                    get_exercise_stats()
+                elif stat_choice == '6':
+                    get_workout_history()
+                else:
+                    print(f"{Colors.RED}❌ Неверный выбор{Colors.END}")
+                    time.sleep(1)
+
+        elif choice in ['3', '4', '5'] and (not auth_token or not user_info):
+            print(f"{Colors.RED}❌ Сначала войдите в систему{Colors.END}")
+            time.sleep(1)
 
         else:
-            print("❌ Неверный выбор. Попробуйте снова.")
-
-        time.sleep(1)
+            print(f"{Colors.RED}❌ Неверный выбор{Colors.END}")
+            time.sleep(1)
 
 if __name__ == "__main__":
     main()
