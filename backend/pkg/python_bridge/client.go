@@ -59,7 +59,12 @@ func (c *Client) ProcessFrame(requestData interface{}) (*FrameResponse, error) {
 	if err != nil {
 		return nil, fmt.Errorf("error sending request to Python: %v", err)
 	}
-	defer resp.Body.Close()
+	defer func(Body io.ReadCloser) {
+		err := Body.Close()
+		if err != nil {
+
+		}
+	}(resp.Body)
 
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {

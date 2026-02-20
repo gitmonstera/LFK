@@ -100,3 +100,24 @@ func (r *UserRepository) UpdateLastLogin(id string) error {
 	_, err := r.db.Exec(query, id)
 	return err
 }
+
+// Update обновляет данные пользователя
+func (r *UserRepository) Update(user *models.User) error {
+	query := `
+		UPDATE users 
+		SET first_name = $1, last_name = $2, birth_date = $3, 
+		    gender = $4, height_cm = $5, weight_kg = $6, updated_at = NOW()
+		WHERE id = $7
+	`
+	_, err := r.db.Exec(query,
+		user.FirstName, user.LastName, user.BirthDate,
+		user.Gender, user.HeightCm, user.WeightKg, user.ID)
+	return err
+}
+
+// UpdatePassword обновляет пароль пользователя
+func (r *UserRepository) UpdatePassword(id string, passwordHash string) error {
+	query := `UPDATE users SET password_hash = $1, updated_at = NOW() WHERE id = $2`
+	_, err := r.db.Exec(query, passwordHash, id)
+	return err
+}
