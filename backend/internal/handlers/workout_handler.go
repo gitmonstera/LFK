@@ -94,6 +94,7 @@ type AddExerciseSetRequest struct {
 	TargetDuration    *int     `json:"target_duration"`
 }
 
+// AddExerciseSet добавляет выполненное упражнение
 func (h *WorkoutHandler) AddExerciseSet(c *gin.Context) {
 	var req AddExerciseSetRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -103,8 +104,8 @@ func (h *WorkoutHandler) AddExerciseSet(c *gin.Context) {
 	}
 
 	userID := c.GetString("user_id")
-	log.Printf("📝 AddExerciseSet called for user %s, exercise %s, reps=%d, duration=%d",
-		userID, req.ExerciseID, req.ActualRepetitions, req.ActualDuration)
+	log.Printf("📝 AddExerciseSet called for user %s, exercise %s, reps=%d, duration=%d, accuracy=%v",
+		userID, req.ExerciseID, req.ActualRepetitions, req.ActualDuration, req.AccuracyScore)
 
 	// Создаем ExerciseSet с правильными sql.Null типами
 	set := &models.ExerciseSet{
@@ -113,7 +114,6 @@ func (h *WorkoutHandler) AddExerciseSet(c *gin.Context) {
 		StartedAt:  time.Now(),
 	}
 
-	// Устанавливаем значения с правильными sql.Null типами
 	set.ActualRepetitions = sql.NullInt64{
 		Int64: int64(req.ActualRepetitions),
 		Valid: true,
@@ -124,31 +124,13 @@ func (h *WorkoutHandler) AddExerciseSet(c *gin.Context) {
 		Valid: true,
 	}
 
-	if req.TargetRepetitions != nil {
-		set.TargetRepetitions = sql.NullInt64{
-			Int64: int64(*req.TargetRepetitions),
-			Valid: true,
-		}
-	}
-
-	if req.TargetDuration != nil {
-		set.TargetDurationSeconds = sql.NullInt64{
-			Int64: int64(*req.TargetDuration),
-			Valid: true,
-		}
-	}
-
 	if req.AccuracyScore != nil {
 		set.AccuracyScore = sql.NullFloat64{
 			Float64: *req.AccuracyScore,
 			Valid:   true,
 		}
-		log.Printf("📊 Accuracy score provided: %.2f", *req.AccuracyScore)
-	} else {
-		log.Printf("⚠️ No accuracy score provided")
 	}
 
-	// Устанавливаем время завершения
 	set.CompletedAt = sql.NullTime{
 		Time:  set.StartedAt.Add(time.Duration(req.ActualDuration) * time.Second),
 		Valid: true,
@@ -162,25 +144,21 @@ func (h *WorkoutHandler) AddExerciseSet(c *gin.Context) {
 	}
 	log.Printf("✅ Exercise set saved successfully with ID: %s", set.ID)
 
-	// Обновляем статистику в фоновом режиме
+	// Обновляем статистику
 	if req.AccuracyScore != nil {
-		log.Printf("📊 Updating statistics in background...")
-		go func() {
-			err := h.statsRepo.UpdateExerciseStats(
-				userID,
-				req.ExerciseID,
-				req.ActualRepetitions,
-				req.ActualDuration,
-				*req.AccuracyScore,
-			)
-			if err != nil {
-				log.Printf("❌ Failed to update stats: %v", err)
-			} else {
-				log.Printf("✅ Stats updated successfully")
-			}
-		}()
-	} else {
-		log.Printf("⚠️ Skipping stats update - no accuracy score")
+		log.Printf("📊 Updating statistics for user %s...", userID)
+		err := h.statsRepo.UpdateExerciseStats(
+			userID,
+			req.ExerciseID,
+			req.ActualRepetitions,
+			req.ActualDuration,
+			*req.AccuracyScore,
+		)
+		if err != nil {
+			log.Printf("❌ Failed to update stats: %v", err)
+		} else {
+			log.Printf("✅ Stats updated successfully")
+		}
 	}
 
 	c.JSON(http.StatusOK, set)

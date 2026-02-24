@@ -250,6 +250,9 @@ def add_exercise_set(session_id, exercise_id, repetitions, duration, accuracy):
         "actual_duration": duration,
         "accuracy_score": accuracy
     }
+
+    print(f"\n{Colors.YELLOW}📤 Отправка статистики на сервер{Colors.END}")
+
     try:
         response = requests.post(
             "http://localhost:8080/api/workout/exercise",
@@ -257,7 +260,14 @@ def add_exercise_set(session_id, exercise_id, repetitions, duration, accuracy):
             json=data,
             timeout=5
         )
-        return response.status_code == 200
+
+        if response.status_code == 200:
+            print(f"{Colors.GREEN}✅ Статистика сохранена!{Colors.END}")
+            return True
+        else:
+            print(f"{Colors.RED}❌ Ошибка сохранения: {response.status_code}{Colors.END}")
+            print(f"{Colors.RED}Ответ: {response.text}{Colors.END}")
+            return False
     except Exception as e:
         print(f"{Colors.RED}❌ Ошибка: {e}{Colors.END}")
         return False
@@ -274,9 +284,11 @@ def end_workout(session_id):
             json=data,
             timeout=5
         )
-        return response.status_code == 200
+        if response.status_code == 200:
+            return True
+        else:
+            return False
     except Exception as e:
-        print(f"{Colors.RED}❌ Ошибка: {e}{Colors.END}")
         return False
 
 # ============= ФУНКЦИИ ДЛЯ СТАТИСТИКИ =============
@@ -300,7 +312,7 @@ def get_overall_stats():
             clear_screen()
             print_header("📊 ОБЩАЯ СТАТИСТИКА")
 
-            if 'message' in stats and stats['message'] == 'No stats available':
+            if not stats or stats.get('total_sessions') is None:
                 print("Нет данных для отображения")
             else:
                 print(f"Всего тренировок: {stats.get('total_sessions', 0)}")
@@ -318,11 +330,8 @@ def get_overall_stats():
 
                 last_workout = stats.get('last_workout_at')
                 if last_workout:
-                    if isinstance(last_workout, dict):
-                        if last_workout.get('Valid'):
-                            date_str = last_workout.get('Time', '')
-                            if date_str:
-                                print(f"Последняя тренировка: {date_str[:10]}")
+                    if isinstance(last_workout, dict) and 'Time' in last_workout:
+                        print(f"Последняя тренировка: {last_workout['Time'][:10]}")
                     elif isinstance(last_workout, str):
                         print(f"Последняя тренировка: {last_workout[:10]}")
             print("=" * 40)
@@ -355,7 +364,7 @@ def get_daily_stats():
             clear_screen()
             print_header(f"📊 СТАТИСТИКА ЗА {today}")
 
-            if 'message' in stats and stats['message'] == 'No data for this date':
+            if not stats or stats.get('total_sessions') is None:
                 print("Нет данных за сегодня")
             else:
                 print(f"Тренировок: {stats.get('total_sessions', 0)}")
@@ -406,8 +415,10 @@ def get_weekly_stats():
 
                 for day in stats:
                     date = day.get('stat_date', '')
-                    if isinstance(date, dict):
-                        date_str = date.get('Time', '')[:10] if date.get('Time') else ''
+                    if isinstance(date, dict) and 'Time' in date:
+                        date_str = date['Time'][:10]
+                    elif isinstance(date, str):
+                        date_str = date[:10] if date else ''
                     else:
                         date_str = str(date)[:10] if date else ''
 
@@ -465,8 +476,10 @@ def get_monthly_stats():
                 weeks = {}
                 for day in stats:
                     date = day.get('stat_date', '')
-                    if isinstance(date, dict):
-                        date_str = date.get('Time', '')[:10] if date.get('Time') else ''
+                    if isinstance(date, dict) and 'Time' in date:
+                        date_str = date['Time'][:10]
+                    elif isinstance(date, str):
+                        date_str = date[:10] if date else ''
                     else:
                         date_str = str(date)[:10] if date else ''
 
@@ -536,11 +549,8 @@ def get_exercise_stats():
 
                     last = ex.get('last_performed_at')
                     if last:
-                        if isinstance(last, dict):
-                            if last.get('Valid'):
-                                date_str = last.get('Time', '')
-                                if date_str:
-                                    print(f"  Последний раз: {date_str[:10]}")
+                        if isinstance(last, dict) and 'Time' in last:
+                            print(f"  Последний раз: {last['Time'][:10]}")
                         elif isinstance(last, str):
                             print(f"  Последний раз: {last[:10]}")
             print("=" * 60)
@@ -577,8 +587,10 @@ def get_workout_history():
             else:
                 for i, workout in enumerate(history, 1):
                     date = workout.get('started_at', '')
-                    if isinstance(date, dict):
-                        date_str = date.get('Time', '')[:10] if date.get('Time') else ''
+                    if isinstance(date, dict) and 'Time' in date:
+                        date_str = date['Time'][:10]
+                    elif isinstance(date, str):
+                        date_str = date[:10] if date else ''
                     else:
                         date_str = str(date)[:10] if date else ''
 
@@ -783,7 +795,9 @@ def connect_and_run(exercise_key):
         fps_time = time.time()
         last_update_time = time.time()
         sets_completed = 0
+        last_cycle = -1
         exercise_completed = False
+        stats_saved_for_cycle = set()
 
         while True:
             good, img = camera.read()
@@ -819,18 +833,46 @@ def connect_and_run(exercise_key):
                         if exercise_key == '3':
                             display_fist_palm_progress(data)
 
-                            # Проверяем завершение упражнения
-                            message = data.get('message', '')
-                            if message.startswith('🎉') and not exercise_completed:
-                                exercise_completed = True
+                            # Получаем текущий цикл из структурированных данных
+                            structured = data.get('structured', {})
+                            current_cycle = structured.get('current_cycle', 0)
+
+                            # Если цикл увеличился, значит завершен предыдущий
+                            if current_cycle > last_cycle and last_cycle >= 0:
                                 sets_completed += 1
                                 print(f"\n{Colors.GREEN}✅ ЦИКЛ {sets_completed} ЗАВЕРШЕН!{Colors.END}")
 
-                                # Сохраняем статистику
-                                if add_exercise_set(session_id, exercise_type, 5, 60, 95.0):
-                                    print(f"{Colors.GREEN}✅ Статистика сохранена!{Colors.END}")
+                                # Сохраняем статистику для этого цикла
+                                if sets_completed not in stats_saved_for_cycle:
+                                    stats_saved_for_cycle.add(sets_completed)
+                                    if add_exercise_set(session_id, exercise_type, 5, 60, 95.0):
+                                        print(f"{Colors.GREEN}✅ Статистика сохранена!{Colors.END}")
+                                    else:
+                                        print(f"{Colors.RED}❌ Ошибка сохранения статистики{Colors.END}")
 
-                                exercise_completed = False
+                            last_cycle = current_cycle
+
+                            # Проверяем завершение упражнения по сообщению
+                            message = data.get('message', '')
+
+                            # КОГДА УПРАЖНЕНИЕ ПОЛНОСТЬЮ ВЫПОЛНЕНО
+                            if message.startswith('🎉') and not exercise_completed:
+                                exercise_completed = True
+                                print(f"\n{Colors.YELLOW}🎯 УПРАЖНЕНИЕ ВЫПОЛНЕНО!{Colors.END}")
+
+                                # СПРАШИВАЕМ ХОЧЕТ ЛИ ПОЛЬЗОВАТЕЛЬ ПРОДОЛЖИТЬ
+                                print(f"{Colors.CYAN}Хотите выполнить еще один подход? (y/n): {Colors.END}", end="")
+                                choice = input().strip().lower()
+
+                                if choice in ['y', 'д', 'yes', 'да']:
+                                    # СБРАСЫВАЕМ ФЛАГИ ДЛЯ ПРОДОЛЖЕНИЯ
+                                    exercise_completed = False
+                                    print(f"{Colors.GREEN}🔄 Продолжаем...{Colors.END}")
+                                    # Продолжаем цикл
+                                else:
+                                    # ВЫХОДИМ ИЗ ЦИКЛА - ЗАВЕРШАЕМ ТРЕНИРОВКУ
+                                    print(f"{Colors.BLUE}⏹️ Завершаем тренировку...{Colors.END}")
+                                    break
                         else:
                             display_regular_exercise(data, exercise_name)
 

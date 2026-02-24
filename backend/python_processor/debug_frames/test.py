@@ -1,130 +1,87 @@
 import requests
 import json
-import time
-
-# Базовый URL API
-BASE_URL = "http://localhost:8080/api"
 
 # Данные для входа
 login_data = {
-    "email": "test@test.com",
+    "email": "e@e.com",
     "password": "password"
 }
 
-def login():
-    """Вход в систему и получение токена"""
-    response = requests.post(f"{BASE_URL}/login", json=login_data)
-    if response.status_code == 200:
-        data = response.json()
-        print("✅ Успешный вход!")
-        return data["token"]
-    else:
-        print(f"❌ Ошибка входа: {response.status_code}")
-        print(response.text)
-        return None
+print("="*60)
+print("🔧 ТЕСТ СОХРАНЕНИЯ СТАТИСТИКИ")
+print("="*60)
 
-def start_workout(token):
-    """Начать тренировку"""
-    headers = {"Authorization": f"Bearer {token}"}
-    response = requests.post(f"{BASE_URL}/workout/start", headers=headers)
-    if response.status_code == 200:
-        data = response.json()
-        print(f"✅ Тренировка начата: {data['id']}")
-        return data["id"]
-    else:
-        print(f"❌ Ошибка начала тренировки: {response.status_code}")
-        return None
+# 1. Логинимся
+print("\n1️⃣  Вход в систему...")
+response = requests.post("http://localhost:8080/api/login", json=login_data)
+if response.status_code != 200:
+    print(f"❌ Ошибка входа: {response.status_code}")
+    exit()
 
-def add_exercise_set(token, session_id, exercise_id, reps, duration, accuracy):
-    """Добавить выполнение упражнения"""
-    headers = {"Authorization": f"Bearer {token}"}
-    data = {
-        "session_id": session_id,
-        "exercise_id": exercise_id,
-        "actual_repetitions": reps,
-        "actual_duration": duration,
-        "accuracy_score": accuracy
-    }
-    response = requests.post(f"{BASE_URL}/workout/exercise", headers=headers, json=data)
-    if response.status_code == 200:
-        print(f"✅ Упражнение {exercise_id} добавлено: {reps} раз, {duration} сек, точность {accuracy}%")
-        return True
-    else:
-        print(f"❌ Ошибка добавления упражнения: {response.status_code}")
-        print(response.text)
-        return False
+token = response.json()["token"]
+print(f"✅ Успешный вход! Токен получен")
 
-def end_workout(token, session_id):
-    """Завершить тренировку"""
-    headers = {"Authorization": f"Bearer {token}"}
-    data = {"session_id": session_id}
-    response = requests.post(f"{BASE_URL}/workout/end", headers=headers, json=data)
-    if response.status_code == 200:
-        print("✅ Тренировка завершена!")
-        return True
-    else:
-        print(f"❌ Ошибка завершения тренировки: {response.status_code}")
-        return False
+# 2. Начинаем тренировку
+print("\n2️⃣  Начало тренировки...")
+headers = {"Authorization": f"Bearer {token}"}
+response = requests.post("http://localhost:8080/api/workout/start", headers=headers)
+if response.status_code != 200:
+    print(f"❌ Ошибка начала тренировки: {response.status_code}")
+    exit()
 
-def get_stats(token):
-    """Получить статистику"""
-    headers = {"Authorization": f"Bearer {token}"}
+session_id = response.json()["id"]
+print(f"✅ Тренировка начата, ID: {session_id}")
 
-    # Общая статистика
-    response = requests.get(f"{BASE_URL}/stats/overall", headers=headers)
-    if response.status_code == 200:
-        print("\n📊 ОБЩАЯ СТАТИСТИКА:")
-        print(json.dumps(response.json(), indent=2, ensure_ascii=False))
-    else:
-        print(f"❌ Ошибка получения статистики: {response.status_code}")
+# 3. Отправляем тестовое упражнение
+print("\n3️⃣  Отправка тестового упражнения...")
+data = {
+    "session_id": session_id,
+    "exercise_id": "fist-palm",
+    "actual_repetitions": 5,
+    "actual_duration": 60,
+    "accuracy_score": 95.0
+}
 
-    # Статистика по упражнениям
-    response = requests.get(f"{BASE_URL}/stats/exercises", headers=headers)
-    if response.status_code == 200:
-        print("\n📊 СТАТИСТИКА ПО УПРАЖНЕНИЯМ:")
-        print(json.dumps(response.json(), indent=2, ensure_ascii=False))
-    else:
-        print(f"❌ Ошибка получения статистики: {response.status_code}")
+print(f"📤 Отправляем данные:")
+print(json.dumps(data, indent=2))
 
-def main():
-    print("🚀 ТЕСТОВЫЙ СКРИПТ ДЛЯ ЗАПОЛНЕНИЯ СТАТИСТИКИ")
-    print("=" * 50)
+response = requests.post(
+    "http://localhost:8080/api/workout/exercise",
+    headers=headers,
+    json=data
+)
 
-    # Вход
-    token = login()
-    if not token:
-        return
+if response.status_code == 200:
+    print(f"✅ Упражнение успешно добавлено!")
+    print(f"📥 Ответ: {response.json()}")
+else:
+    print(f"❌ Ошибка: {response.status_code}")
+    print(f"📥 Ответ: {response.text}")
 
-    # Создаем тестовые данные для разных упражнений
-    exercises = [
-        {"id": "fist", "name": "Кулак", "reps": 10, "duration": 30, "accuracy": 95.5},
-        {"id": "fist-index", "name": "Кулак с указательным", "reps": 8, "duration": 25, "accuracy": 88.0},
-        {"id": "fist-palm", "name": "Кулак-ладонь", "reps": 5, "duration": 60, "accuracy": 92.3},
-    ]
+# 4. Завершаем тренировку
+print("\n4️⃣  Завершение тренировки...")
+response = requests.post(
+    "http://localhost:8080/api/workout/end",
+    headers=headers,
+    json={"session_id": session_id}
+)
 
-    # Выполняем несколько тренировок
-    for workout_num in range(1, 4):
-        print(f"\n🏋️ ТРЕНИРОВКА #{workout_num}")
-        print("-" * 30)
+if response.status_code == 200:
+    print(f"✅ Тренировка завершена!")
+else:
+    print(f"❌ Ошибка завершения: {response.status_code}")
 
-        # Начинаем тренировку
-        session_id = start_workout(token)
-        if not session_id:
-            continue
+print("\n5️⃣  Проверка статистики...")
+response = requests.get(
+    "http://localhost:8080/api/stats/overall",
+    headers=headers
+)
 
-        # Добавляем упражнения
-        for ex in exercises:
-            time.sleep(0.5)  # Небольшая пауза между упражнениями
-            add_exercise_set(token, session_id, ex["id"],
-                             ex["reps"] * workout_num,
-                             ex["duration"] * workout_num,
-                             ex["accuracy"] - workout_num)
+if response.status_code == 200:
+    stats = response.json()
+    print(f"📊 Общая статистика:")
+    print(json.dumps(stats, indent=2))
+else:
+    print(f"❌ Ошибка получения статистики: {response.status_code}")
 
-        # Завершаем тренировку
-        end_workout(token, session_id)
-
-    # Получаем статистику
-    get_stats(token)
-
-if __name__ == "__main__":
-    main()
+print("\n" + "="*60)

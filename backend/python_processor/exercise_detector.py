@@ -60,17 +60,8 @@ class ExerciseManager:
     def set_exercise(self, exercise_id):
         """Устанавливает текущее упражнение"""
         if exercise_id in self.exercises:
-            # Сохраняем старое упражнение для сравнения
-            old_exercise = self.current_exercise_id
             self.current_exercise = self.exercises[exercise_id]
             self.current_exercise_id = exercise_id
-
-            # Сбрасываем ТОЛЬКО если это действительно смена упражнения
-            if old_exercise != exercise_id:
-                if hasattr(self.current_exercise, 'reset'):
-                    self.current_exercise.reset()
-                    print(f"🔄 Упражнение сброшено при смене с {old_exercise} на {exercise_id}")
-
             print(f"🔄 Текущее упражнение: {self.current_exercise.name}")
             return True
         else:
