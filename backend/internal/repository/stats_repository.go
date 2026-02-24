@@ -2,6 +2,7 @@ package repository
 
 import (
 	"database/sql"
+	"errors"
 	"lfk-backend/internal/models"
 	"log"
 	"time"
@@ -24,7 +25,12 @@ func (r *StatsRepository) UpdateExerciseStats(userID, exerciseID string, repetit
 	if err != nil {
 		return err
 	}
-	defer tx.Rollback()
+	defer func(tx *sqlx.Tx) {
+		err := tx.Rollback()
+		if err != nil {
+
+		}
+	}(tx)
 
 	now := time.Now()
 	today := now.Format("2006-01-02")
@@ -124,7 +130,7 @@ func (r *StatsRepository) UpdateExerciseStats(userID, exerciseID string, repetit
 	}
 
 	// 5. Обновляем streak
-	if err := r.updateStreak(tx, userID, today); err != nil {
+	if err := r.updateStreak(tx, userID); err != nil {
 		return err
 	}
 
@@ -132,7 +138,7 @@ func (r *StatsRepository) UpdateExerciseStats(userID, exerciseID string, repetit
 }
 
 // updateStreak обновляет серию тренировок
-func (r *StatsRepository) updateStreak(tx *sqlx.Tx, userID string, today string) error {
+func (r *StatsRepository) updateStreak(tx *sqlx.Tx, userID string) error {
 	// Проверяем, была ли тренировка вчера
 	yesterday := time.Now().AddDate(0, 0, -1).Format("2006-01-02")
 
@@ -178,7 +184,7 @@ func (r *StatsRepository) GetOverallStats(userID string) (*models.OverallStats, 
 	query := `SELECT * FROM overall_stats WHERE user_id = $1`
 	err := r.db.Get(&stats, query, userID)
 	if err != nil {
-		if err == sql.ErrNoRows {
+		if errors.Is(err, sql.ErrNoRows) {
 			log.Printf("ℹ️ No overall_stats found for user %s", userID)
 			return nil, nil
 		}

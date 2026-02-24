@@ -56,10 +56,19 @@ func (h *ExerciseHandler) HandleWebSocket(w http.ResponseWriter, r *http.Request
 		return
 	}
 
-	conn.SetReadDeadline(time.Now().Add(60 * time.Second))
-	conn.SetWriteDeadline(time.Now().Add(60 * time.Second))
+	err = conn.SetReadDeadline(time.Now().Add(60 * time.Second))
+	if err != nil {
+		return
+	}
+	err = conn.SetWriteDeadline(time.Now().Add(60 * time.Second))
+	if err != nil {
+		return
+	}
 	conn.SetPongHandler(func(string) error {
-		conn.SetReadDeadline(time.Now().Add(60 * time.Second))
+		err := conn.SetReadDeadline(time.Now().Add(60 * time.Second))
+		if err != nil {
+			return err
+		}
 		return nil
 	})
 
@@ -81,7 +90,10 @@ func (h *ExerciseHandler) readPump(client *websocket.Client) {
 	defer func() {
 		log.Printf("readPump exiting for client: %s", client.ExerciseID)
 		client.Hub.Unregister <- client
-		client.Conn.Close()
+		err := client.Conn.Close()
+		if err != nil {
+			return
+		}
 	}()
 
 	client.Conn.SetReadLimit(10 * 1024 * 1024)
@@ -130,25 +142,37 @@ func (h *ExerciseHandler) writePump(client *websocket.Client) {
 	defer func() {
 		log.Printf("writePump exiting for client: %s", client.ExerciseID)
 		ticker.Stop()
-		client.Conn.Close()
+		err := client.Conn.Close()
+		if err != nil {
+			return
+		}
 	}()
 
 	for {
 		select {
 		case message, ok := <-client.Send:
 			if !ok {
-				client.Conn.WriteMessage(gorilla.CloseMessage, []byte{})
+				err := client.Conn.WriteMessage(gorilla.CloseMessage, []byte{})
+				if err != nil {
+					return
+				}
 				return
 			}
 
-			client.Conn.SetWriteDeadline(time.Now().Add(30 * time.Second))
+			err := client.Conn.SetWriteDeadline(time.Now().Add(30 * time.Second))
+			if err != nil {
+				return
+			}
 			if err := client.Conn.WriteMessage(gorilla.TextMessage, message); err != nil {
 				log.Printf("writePump error for %s: %v", client.ExerciseID, err)
 				return
 			}
 
 		case <-ticker.C:
-			client.Conn.SetWriteDeadline(time.Now().Add(30 * time.Second))
+			err := client.Conn.SetWriteDeadline(time.Now().Add(30 * time.Second))
+			if err != nil {
+				return
+			}
 			if err := client.Conn.WriteMessage(gorilla.PingMessage, nil); err != nil {
 				log.Printf("Ping error for %s: %v", client.ExerciseID, err)
 				return

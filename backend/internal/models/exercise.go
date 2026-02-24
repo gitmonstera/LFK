@@ -10,12 +10,6 @@ import (
 // Типы упражнений
 type ExerciseType string
 
-const (
-	FistExercise      ExerciseType = "fist"
-	FistIndexExercise ExerciseType = "fist-index"
-	FistPalmExercise  ExerciseType = "fist-palm"
-)
-
 // Структурированные данные для упражнения Кулак-ладонь
 type StructuredData struct {
 	Step        int     `json:"step"`

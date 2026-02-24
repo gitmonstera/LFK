@@ -1,12 +1,13 @@
-import cv2
-import websocket
 import base64
 import json
-import numpy as np
 import time
-import requests
 import urllib.parse
-from datetime import datetime, timedelta
+from datetime import datetime
+
+import cv2
+import numpy as np
+import requests
+import websocket
 
 # URL для разных упражнений
 EXERCISE_URLS = {
