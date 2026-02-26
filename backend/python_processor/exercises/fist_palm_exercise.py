@@ -13,7 +13,7 @@ class FistPalmExercise(BaseExercise):
         self.exercise_id = "fist-palm"
 
         # Состояние упражнения
-        self.state = "waiting_fist"  # waiting_fist, holding_fist, waiting_palm, holding_palm
+        self.state = "waiting_fist"  # waiting_fist, holding_fist, waiting_palm, holding_palm, completed
         self.state_start_time = time.time()
         self.hold_duration = 3  # секунд удержания
 
@@ -27,6 +27,7 @@ class FistPalmExercise(BaseExercise):
 
         # Флаг для отслеживания завершения цикла
         self.cycle_completed = False
+        self.completed_flag = False
 
         # Структурированные данные для клиента
         self.structured_data = self._get_structured_data()
@@ -41,6 +42,7 @@ class FistPalmExercise(BaseExercise):
         self.countdown = self.hold_duration
         self.last_countdown_update = time.time()
         self.cycle_completed = False
+        self.completed_flag = False
         self.structured_data = self._get_structured_data()
         print(f"🔄 Упражнение сброшено в начальное состояние")
 
@@ -54,7 +56,8 @@ class FistPalmExercise(BaseExercise):
             "countdown": None,
             "progress_percent": 0,
             "message": self._get_state_message(),
-            "cycle_completed": self.cycle_completed
+            "cycle_completed": self.cycle_completed,
+            "completed": self.completed_flag
         }
 
         # Добавляем countdown если в состоянии удержания
@@ -73,7 +76,8 @@ class FistPalmExercise(BaseExercise):
             "waiting_fist": "Ожидание кулака",
             "holding_fist": "Держите кулак",
             "waiting_palm": "Ожидание ладони",
-            "holding_palm": "Держите ладонь"
+            "holding_palm": "Держите ладонь",
+            "completed": "Упражнение завершено"
         }
         return state_names.get(self.state, "Неизвестно")
 
@@ -92,6 +96,8 @@ class FistPalmExercise(BaseExercise):
             return f"🖐️ ШАГ 3/4: Раскройте ладонь (цикл {next_cycle}/{self.total_cycles})"
         elif self.state == "holding_palm":
             return f"🖐️ ШАГ 4/4: Держите ладонь... {self.countdown} (цикл {next_cycle}/{self.total_cycles})"
+        elif self.state == "completed":
+            return f"🎉 Упражнение завершено! Выполнено {self.total_cycles} циклов. Нажмите R для повторения"
         return ""
 
     def check_fingers(self, finger_states, hand_landmarks, frame_shape):
@@ -178,19 +184,22 @@ class FistPalmExercise(BaseExercise):
                     print(f"   ✅ ЦИКЛ {self.current_cycle}/{self.total_cycles} ЗАВЕРШЕН!")
 
                     if self.current_cycle >= self.total_cycles:
-                        # Все циклы выполнены, сбрасываем счетчик для следующего подхода
+                        # Все циклы выполнены - переходим в состояние completed
+                        self.state = "completed"
+                        self.completed_flag = True
                         print(f"   🎉 УПРАЖНЕНИЕ ПОЛНОСТЬЮ ЗАВЕРШЕНО!")
-                        self.current_cycle = 0
-                        self.state = "waiting_fist"
-                        self.state_start_time = current_time
-                        self.countdown = self.hold_duration
-                        print(f"   🔄 Сброс для следующего подхода!")
+                        # НЕ СБРАСЫВАЕМ АВТОМАТИЧЕСКИ!
                     else:
                         # Переходим к следующему циклу
                         self.state = "waiting_fist"
                         self.state_start_time = current_time
                         self.countdown = self.hold_duration
                         print(f"   🔄 Начинаем цикл {self.current_cycle + 1}/{self.total_cycles}")
+
+        elif self.state == "completed":
+            # Если упражнение завершено, просто возвращаем сообщение о завершении
+            # НЕ МЕНЯЕМ СОСТОЯНИЕ!
+            print(f"   🔍 Упражнение завершено, ожидание команды от клиента")
 
         # Обновляем структурированные данные
         self.structured_data = self._get_structured_data()
@@ -213,12 +222,15 @@ class FistPalmExercise(BaseExercise):
                     colors.append((0, 0, 255))  # Красный - ошибка
                 else:
                     colors.append((0, 255, 0))  # Зеленый - правильно
-            else:  # waiting_palm, holding_palm
+            elif self.state in ["waiting_palm", "holding_palm"]:
                 # В фазе ладони: пальцы должны быть подняты
                 if is_raised:
                     colors.append((0, 255, 0))  # Зеленый - правильно
                 else:
                     colors.append((0, 0, 255))  # Красный - ошибка
+            else:  # completed
+                # В завершенном состоянии все пальцы серые
+                colors.append((128, 128, 128))
 
         return colors
 
@@ -250,17 +262,24 @@ class FistPalmExercise(BaseExercise):
 
         info_y += 30
         # Отображаем текущее состояние
-        state_color = (0, 255, 255) if "holding" in self.state else (255, 255, 255)
+        if self.state == "completed":
+            state_color = (0, 255, 0)  # Зеленый для завершения
+        else:
+            state_color = (0, 255, 255) if "holding" in self.state else (255, 255, 255)
         cv2.putText(frame, self._get_state_name(), (15, info_y),
                     cv2.FONT_HERSHEY_SIMPLEX, 0.8, state_color, 2)
 
         info_y += 30
-        # Показываем следующий цикл (current_cycle + 1)
-        next_cycle = self.current_cycle + 1
-        if next_cycle > self.total_cycles:
-            next_cycle = self.total_cycles
-        cv2.putText(frame, f"Цикл: {next_cycle}/{self.total_cycles}", (15, info_y),
-                    cv2.FONT_HERSHEY_SIMPLEX, 0.7, (255, 255, 255), 2)
+        if self.state != "completed":
+            # Показываем следующий цикл (current_cycle + 1)
+            next_cycle = self.current_cycle + 1
+            if next_cycle > self.total_cycles:
+                next_cycle = self.total_cycles
+            cv2.putText(frame, f"Цикл: {next_cycle}/{self.total_cycles}", (15, info_y),
+                        cv2.FONT_HERSHEY_SIMPLEX, 0.7, (255, 255, 255), 2)
+        else:
+            cv2.putText(frame, f"Выполнено: {self.total_cycles} циклов", (15, info_y),
+                        cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 255, 0), 2)
 
         # Прогресс-бар для удержания
         if self.state in ["holding_fist", "holding_palm"] and self.structured_data["countdown"]:
