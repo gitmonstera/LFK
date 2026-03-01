@@ -750,6 +750,28 @@ def display_regular_exercise(data, exercise_name):
 
     print("-" * 60)
 
+def reset_exercise_on_server():
+    """Отправляет запрос на сброс упражнения на сервере"""
+    global auth_token
+    try:
+        # Пробуем через HTTP
+        response = requests.post(
+            "http://localhost:8080/api/exercise/reset",  # Изменено с /api/reset_for_new_attempt
+            headers={"Authorization": f"Bearer {auth_token}"},
+            json={"exercise_type": "fist-palm"},  # Укажите нужный тип
+            timeout=2
+        )
+        if response.status_code == 200:
+            data = response.json()
+            print(f"{Colors.GREEN}✅ Упражнение сброшено на сервере: {data.get('message')}{Colors.END}")
+            return True
+        else:
+            print(f"{Colors.YELLOW}⚠️ Сервер вернул ошибку: {response.status_code} - {response.text}{Colors.END}")
+    except Exception as e:
+        print(f"{Colors.YELLOW}⚠️ Не удалось сбросить через HTTP: {e}{Colors.END}")
+
+    return False
+
 def connect_and_run(exercise_key):
     """Подключение и выполнение упражнения"""
     global auth_token, user_info
@@ -762,172 +784,258 @@ def connect_and_run(exercise_key):
     exercise_name = EXERCISE_NAMES[exercise_key]
     exercise_type = EXERCISE_TYPES[exercise_key]
 
-    # Начинаем тренировку
-    print(f"\n{Colors.CYAN}🔄 Начинаем тренировку...{Colors.END}")
-    session_id = start_workout()
-    if not session_id:
-        return False
+    while True:  # Цикл для повторного выполнения упражнения
+        # Ждем пока упражнение сбросится на сервере
+        print(f"\n{Colors.CYAN}⏳ Проверка состояния упражнения...{Colors.END}")
+        if not wait_for_exercise_reset(exercise_type):
+            print(f"{Colors.YELLOW}⚠️ Принудительный сброс через API...{Colors.END}")
+            try:
+                requests.post(
+                    "http://localhost:8080/api/exercise/reset",
+                    headers={"Authorization": f"Bearer {auth_token}"},
+                    json={"exercise_type": exercise_type},
+                    timeout=2
+                )
+            except:
+                pass
+            time.sleep(1)
 
-    # Кодируем токен для URL
-    encoded_token = urllib.parse.quote(auth_token)
-    ws_url = f"{url}?token={encoded_token}"
-
-    print(f"{Colors.GREEN}✅ Тренировка начата, ID: {session_id}{Colors.END}")
-    print(f"\n🔌 Подключение к WebSocket...")
-    print(f"📋 Упражнение: {exercise_name}")
-    print(f"👤 Пользователь: {user_info.get('username')}")
-
-    try:
-        ws = websocket.create_connection(ws_url, timeout=10)
-        print(f"{Colors.GREEN}✅ WebSocket подключен успешно!{Colors.END}")
-
-        camera = cv2.VideoCapture(0)
-        camera.set(cv2.CAP_PROP_FRAME_WIDTH, 640)
-        camera.set(cv2.CAP_PROP_FRAME_HEIGHT, 480)
-
-        if not camera.isOpened():
-            print(f"{Colors.RED}❌ Не удалось открыть камеру{Colors.END}")
+        # Начинаем тренировку
+        print(f"\n{Colors.CYAN}🔄 Начинаем тренировку...{Colors.END}")
+        session_id = start_workout()
+        if not session_id:
             return False
 
-        print(f"\n{Colors.CYAN}📹 Отправка кадров... Нажмите ESC для выхода{Colors.END}")
-        print("-" * 60)
+        # Кодируем токен для URL
+        encoded_token = urllib.parse.quote(auth_token)
+        ws_url = f"{url}?token={encoded_token}"
 
-        frame_count = 0
-        fps_time = time.time()
-        last_update_time = time.time()
-        sets_completed = 0
-        last_cycle = -1
-        exercise_completed = False
-        stats_saved_for_cycle = set()
+        print(f"{Colors.GREEN}✅ Тренировка начата, ID: {session_id}{Colors.END}")
+        print(f"\n🔌 Подключение к WebSocket...")
+        print(f"📋 Упражнение: {exercise_name}")
+        print(f"👤 Пользователь: {user_info.get('username')}")
 
-        while True:
-            good, img = camera.read()
-            if not good:
-                continue
+        try:
+            ws = websocket.create_connection(ws_url, timeout=10)
+            print(f"{Colors.GREEN}✅ WebSocket подключен успешно!{Colors.END}")
 
-            frame_count += 1
+            camera = cv2.VideoCapture(0)
+            camera.set(cv2.CAP_PROP_FRAME_WIDTH, 640)
+            camera.set(cv2.CAP_PROP_FRAME_HEIGHT, 480)
 
-            if frame_count % 3 == 0:
-                _, buffer = cv2.imencode('.jpg', img, [cv2.IMWRITE_JPEG_QUALITY, 50])
-                img_base64 = base64.b64encode(buffer).decode('utf-8')
+            if not camera.isOpened():
+                print(f"{Colors.RED}❌ Не удалось открыть камеру{Colors.END}")
+                return False
 
-                ws.send(json.dumps({
-                    "frame": img_base64,
-                    "exercise_type": exercise_type
-                }))
+            print(f"\n{Colors.CYAN}📹 Отправка кадров... Нажмите ESC для выхода{Colors.END}")
+            print("-" * 60)
 
-                ws.settimeout(0.5)
-                try:
-                    result = ws.recv()
-                    data = json.loads(result)
+            frame_count = 0
+            last_update_time = time.time()
+            sets_completed = 0
+            last_cycle = -1
+            exercise_completed = False
+            stats_saved_for_cycle = set()
+            workout_ended = False
 
-                    if 'processed_frame' in data and data['processed_frame']:
-                        frame_bytes = base64.b64decode(data['processed_frame'])
-                        nparr = np.frombuffer(frame_bytes, np.uint8)
-                        processed = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
-                        if processed is not None:
-                            cv2.imshow('Processed', processed)
+            while True:
+                good, img = camera.read()
+                if not good:
+                    continue
 
-                    # Обновляем отображение
-                    current_time = time.time()
-                    if current_time - last_update_time > 0.5:
-                        if exercise_key == '3':
-                            display_fist_palm_progress(data)
+                frame_count += 1
 
-                            # Получаем текущий цикл из структурированных данных
-                            structured = data.get('structured', {})
-                            current_cycle = structured.get('current_cycle', 0)
+                if frame_count % 3 == 0:
+                    _, buffer = cv2.imencode('.jpg', img, [cv2.IMWRITE_JPEG_QUALITY, 50])
+                    img_base64 = base64.b64encode(buffer).decode('utf-8')
 
-                            # Если цикл увеличился, значит завершен предыдущий
-                            if current_cycle > last_cycle and last_cycle >= 0:
-                                sets_completed += 1
-                                print(f"\n{Colors.GREEN}✅ ЦИКЛ {sets_completed} ЗАВЕРШЕН!{Colors.END}")
+                    # Отправляем кадр на сервер
+                    ws.send(json.dumps({
+                        "frame": img_base64,
+                        "exercise_type": exercise_type
+                    }))
 
-                                # Сохраняем статистику для этого цикла
-                                if sets_completed not in stats_saved_for_cycle:
-                                    stats_saved_for_cycle.add(sets_completed)
-                                    if add_exercise_set(session_id, exercise_type, 5, 60, 95.0):
-                                        print(f"{Colors.GREEN}✅ Статистика сохранена!{Colors.END}")
-                                    else:
-                                        print(f"{Colors.RED}❌ Ошибка сохранения статистики{Colors.END}")
+                    ws.settimeout(0.5)
+                    try:
+                        result = ws.recv()
+                        data = json.loads(result)
 
-                            last_cycle = current_cycle
+                        if 'processed_frame' in data and data['processed_frame']:
+                            frame_bytes = base64.b64decode(data['processed_frame'])
+                            nparr = np.frombuffer(frame_bytes, np.uint8)
+                            processed = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
+                            if processed is not None:
+                                cv2.imshow('Processed', processed)
 
-                            # Проверяем завершение упражнения по сообщению
-                            message = data.get('message', '')
+                        # Обновляем отображение
+                        current_time = time.time()
+                        if current_time - last_update_time > 0.5:
+                            if exercise_key == '3':
+                                display_fist_palm_progress(data)
 
-                            # КОГДА УПРАЖНЕНИЕ ПОЛНОСТЬЮ ВЫПОЛНЕНО
-                            if message.startswith('🎉') and not exercise_completed:
-                                exercise_completed = True
-                                print(f"\n{Colors.YELLOW}🎯 УПРАЖНЕНИЕ ВЫПОЛНЕНО!{Colors.END}")
+                                # Получаем текущий цикл из структурированных данных
+                                structured = data.get('structured', {})
+                                current_cycle = structured.get('current_cycle', 0)
 
-                                # СПРАШИВАЕМ ХОЧЕТ ЛИ ПОЛЬЗОВАТЕЛЬ ПРОДОЛЖИТЬ
-                                print(f"{Colors.CYAN}Хотите выполнить еще один подход? (y/n): {Colors.END}", end="")
-                                choice = input().strip().lower()
+                                # Если цикл увеличился, значит завершен предыдущий
+                                if current_cycle > last_cycle and last_cycle >= 0:
+                                    sets_completed += 1
+                                    print(f"\n{Colors.GREEN}✅ ЦИКЛ {sets_completed} ЗАВЕРШЕН!{Colors.END}")
 
-                                if choice in ['y', 'д', 'yes', 'да']:
-                                    # СБРАСЫВАЕМ ФЛАГИ ДЛЯ ПРОДОЛЖЕНИЯ
-                                    exercise_completed = False
-                                    print(f"{Colors.GREEN}🔄 Продолжаем...{Colors.END}")
-                                    # Продолжаем цикл
-                                else:
-                                    # ВЫХОДИМ ИЗ ЦИКЛА - ЗАВЕРШАЕМ ТРЕНИРОВКУ
-                                    print(f"{Colors.BLUE}⏹️ Завершаем тренировку...{Colors.END}")
+                                    # Сохраняем статистику для этого цикла
+                                    if sets_completed not in stats_saved_for_cycle:
+                                        stats_saved_for_cycle.add(sets_completed)
+                                        if add_exercise_set(session_id, exercise_type, 5, 60, 95.0):
+                                            print(f"{Colors.GREEN}✅ Статистика сохранена!{Colors.END}")
+                                        else:
+                                            print(f"{Colors.RED}❌ Ошибка сохранения статистики{Colors.END}")
+
+                                last_cycle = current_cycle
+
+                                # Проверяем завершение упражнения по сообщению
+                                message = data.get('message', '')
+                                structured_completed = structured.get('completed', False)
+
+                                # КОГДА УПРАЖНЕНИЕ ПОЛНОСТЬЮ ВЫПОЛНЕНО
+                                if (message.startswith('🎉') or structured_completed) and not exercise_completed:
+                                    exercise_completed = True
+                                    print(f"\n{Colors.YELLOW}🎯 УПРАЖНЕНИЕ ВЫПОЛНЕНО!{Colors.END}")
+
+                                    # Завершаем текущую тренировку
+                                    if end_workout(session_id):
+                                        print(f"{Colors.GREEN}✅ Тренировка завершена!{Colors.END}")
+
+                                    workout_ended = True
+
+                                    # НЕМЕДЛЕННО ВЫХОДИМ ИЗ ЦИКЛА
                                     break
-                        else:
-                            display_regular_exercise(data, exercise_name)
+                            else:
+                                display_regular_exercise(data, exercise_name)
 
-                        last_update_time = current_time
+                            last_update_time = current_time
 
-                except websocket.WebSocketTimeoutException:
-                    pass
-                except Exception as e:
-                    print(f"\n{Colors.RED}❌ Ошибка получения: {e}{Colors.END}")
+                    except websocket.WebSocketTimeoutException:
+                        pass
+                    except Exception as e:
+                        print(f"\n{Colors.RED}❌ Ошибка получения: {e}{Colors.END}")
 
-            # Добавляем информацию на кадр
-            cv2.putText(img, f"User: {user_info.get('username', '')}", (10, 30),
-                        cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 255, 0), 2)
-            cv2.putText(img, f"Sets: {sets_completed}", (10, 55),
-                        cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 255, 0), 2)
-            cv2.putText(img, "ESC - exit", (10, 80),
-                        cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 1)
+                # Добавляем информацию на кадр
+                cv2.putText(img, f"User: {user_info.get('username', '')}", (10, 30),
+                            cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 255, 0), 2)
+                cv2.putText(img, f"Sets: {sets_completed}", (10, 55),
+                            cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 255, 0), 2)
+                cv2.putText(img, "ESC - exit", (10, 80),
+                            cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 1)
 
-            cv2.imshow('Original', img)
+                cv2.imshow('Original', img)
 
-            key = cv2.waitKey(1) & 0xFF
-            if key == 27:  # ESC
+                key = cv2.waitKey(1) & 0xFF
+                if key == 27:  # ESC
+                    workout_ended = True
+                    break
+
+                # Если упражнение завершено, выходим из цикла немедленно
+                if exercise_completed:
+                    break
+
+            # Освобождаем ресурсы камеры и закрываем окна
+            camera.release()
+            cv2.destroyAllWindows()
+
+            # Закрываем WebSocket соединение
+            try:
+                ws.close()
+                print("🔌 WebSocket соединение закрыто")
+            except:
+                pass
+
+            if sets_completed > 0:
+                print(f"\n{Colors.GREEN}📊 ИТОГО ВЫПОЛНЕНО: {sets_completed} подходов{Colors.END}")
+
+            print("\n🔌 Соединение закрыто")
+
+            # Если упражнение было завершено, спрашиваем пользователя
+            if exercise_completed:
+                # СПРАШИВАЕМ ХОЧЕТ ЛИ ПОЛЬЗОВАТЕЛЬ ВЫПОЛНИТЬ УПРАЖНЕНИЕ СНОВА
+                print(f"\n{Colors.CYAN}Хотите выполнить это упражнение еще раз? (y/n): {Colors.END}", end="")
+                choice = input().strip().lower()
+
+                if choice in ['y', 'д', 'yes', 'да']:
+                    print(f"{Colors.GREEN}🔄 Начинаем новое выполнение...{Colors.END}")
+
+                    # Даем время серверу обработать завершение
+                    time.sleep(2)
+
+                    continue  # Возвращаемся к началу while True для нового выполнения
+                else:
+                    print(f"{Colors.BLUE}⏹️ Возврат в меню упражнений...{Colors.END}")
+                    time.sleep(1)
+                    break  # Выходим из цикла и возвращаемся в меню
+            else:
+                # Если упражнение не было завершено (ESC или ошибка), просто возвращаемся в меню
                 break
 
-        camera.release()
-        cv2.destroyAllWindows()
-        ws.close()
+        except websocket.WebSocketBadStatusException as e:
+            if "401" in str(e):
+                print(f"\n{Colors.RED}❌ Ошибка авторизации. Токен недействителен.{Colors.END}")
+                auth_token = None
+                user_info = None
+            else:
+                print(f"\n{Colors.RED}❌ Ошибка WebSocket: {e}{Colors.END}")
+            input("\nНажмите Enter для продолжения...")
+            return False
+        except Exception as e:
+            print(f"\n{Colors.RED}❌ Ошибка: {e}{Colors.END}")
+            import traceback
+            traceback.print_exc()
+            input("\nНажмите Enter для продолжения...")
+            return False
 
-        if sets_completed > 0:
-            print(f"\n{Colors.GREEN}📊 ИТОГО ВЫПОЛНЕНО: {sets_completed} подходов{Colors.END}")
+    return True
 
-        # Завершаем тренировку
-        if end_workout(session_id):
-            print(f"{Colors.GREEN}✅ Тренировка завершена!{Colors.END}")
-
-        print("\n🔌 Соединение закрыто")
-        input("\nНажмите Enter для продолжения...")
-        return True
-
-    except websocket.WebSocketBadStatusException as e:
-        if "401" in str(e):
-            print(f"\n{Colors.RED}❌ Ошибка авторизации. Токен недействителен.{Colors.END}")
-            auth_token = None
-            user_info = None
+def check_exercise_state(exercise_type):
+    """Проверяет состояние упражнения на сервере"""
+    global auth_token
+    try:
+        response = requests.get(
+            f"http://localhost:8080/api/exercise_state?type={exercise_type}",
+            headers={"Authorization": f"Bearer {auth_token}"},
+            timeout=3
+        )
+        if response.status_code == 200:
+            data = response.json()
+            return data
         else:
-            print(f"\n{Colors.RED}❌ Ошибка WebSocket: {e}{Colors.END}")
-        input("\nНажмите Enter для продолжения...")
-        return False
+            print(f"{Colors.YELLOW}⚠️ Не удалось получить состояние: {response.status_code}{Colors.END}")
+            return None
     except Exception as e:
-        print(f"\n{Colors.RED}❌ Ошибка: {e}{Colors.END}")
-        import traceback
-        traceback.print_exc()
-        input("\nНажмите Enter для продолжения...")
-        return False
+        print(f"{Colors.YELLOW}⚠️ Ошибка при проверке состояния: {e}{Colors.END}")
+        return None
+
+def wait_for_exercise_reset(exercise_type, max_attempts=5):
+    """Ждет пока упражнение не сбросится"""
+    for attempt in range(max_attempts):
+        state = check_exercise_state(exercise_type)
+        if state and state.get('structured'):
+            # Проверяем, что упражнение в начальном состоянии
+            structured = state.get('structured', {})
+            current_cycle = structured.get('current_cycle', 0)
+            state_name = structured.get('state', '')
+
+            print(f"🔄 Проверка состояния: цикл={current_cycle}, состояние={state_name}")
+
+            if current_cycle == 0 and state_name == 'waiting_fist':
+                print(f"{Colors.GREEN}✅ Упражнение готово к началу{Colors.END}")
+                return True
+
+            # Если упражнение все еще в completed, ждем
+            if state_name == 'completed':
+                print(f"{Colors.YELLOW}⏳ Упражнение еще завершено, ждем...{Colors.END}")
+
+        time.sleep(1)
+
+    print(f"{Colors.RED}❌ Упражнение не сбросилось после {max_attempts} попыток{Colors.END}")
+    return False
 
 def main():
     global auth_token, user_info

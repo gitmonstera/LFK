@@ -10,15 +10,19 @@ import (
 // Типы упражнений
 type ExerciseType string
 
-// Структурированные данные для упражнения Кулак-ладонь
+// Структурированные данные для упражнения
 type StructuredData struct {
-	Step        int     `json:"step"`
-	StepName    string  `json:"step_name"`
-	Countdown   *int    `json:"countdown,omitempty"`
-	Progress    float64 `json:"progress"`
-	Cycle       int     `json:"cycle"`
-	TotalCycles int     `json:"total_cycles"`
-	Status      string  `json:"status"`
+	State       interface{} `json:"state"` // может быть строкой или числом
+	StateName   string      `json:"state_name"`
+	Countdown   *int        `json:"countdown,omitempty"`
+	Progress    float64     `json:"progress_percent"`
+	Cycle       int         `json:"current_cycle"`
+	TotalCycles int         `json:"total_cycles"`
+	Status      string      `json:"status,omitempty"`
+	Completed   bool        `json:"completed"`
+	Message     string      `json:"message"`
+	Step        int         `json:"step,omitempty"`
+	StepName    string      `json:"step_name,omitempty"`
 }
 
 // Сессия упражнения

@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"log"
 	"net/http"
 	"time"
 )
@@ -23,15 +24,21 @@ func NewClient(baseURL string) *Client {
 	}
 }
 
-// Структурированные данные для упражнения Кулак-ладонь
+// Структурированные данные для упражнения
 type StructuredData struct {
-	Step        int     `json:"step"`
-	StepName    string  `json:"step_name"`
-	Countdown   *int    `json:"countdown,omitempty"`
-	Progress    float64 `json:"progress"`
-	Cycle       int     `json:"cycle"`
-	TotalCycles int     `json:"total_cycles"`
-	Status      string  `json:"status"`
+	State       interface{} `json:"state"` // может быть строкой или числом
+	StateName   string      `json:"state_name"`
+	Countdown   *int        `json:"countdown,omitempty"`
+	Progress    float64     `json:"progress_percent"`
+	Cycle       int         `json:"current_cycle"`
+	TotalCycles int         `json:"total_cycles"`
+	Status      string      `json:"status,omitempty"`
+	Completed   bool        `json:"completed"`
+	Message     string      `json:"message"`
+	AutoReset   bool        `json:"auto_reset"`
+	// Для обратной совместимости со старым кодом
+	Step     int    `json:"step,omitempty"`
+	StepName string `json:"step_name,omitempty"`
 }
 
 type FrameResponse struct {
@@ -49,22 +56,19 @@ type FrameResponse struct {
 }
 
 // ProcessFrame отправляет запрос в Python
-func (c *Client) ProcessFrame(requestData interface{}) (*FrameResponse, error) {
+func (c *Client) ProcessFrame(requestData map[string]interface{}) (*FrameResponse, error) {
 	jsonData, err := json.Marshal(requestData)
 	if err != nil {
 		return nil, fmt.Errorf("error marshaling request: %v", err)
 	}
 
+	log.Printf("📤 Отправка запроса в Python: %s", string(jsonData))
+
 	resp, err := c.HTTPClient.Post(c.BaseURL+"/process", "application/json", bytes.NewBuffer(jsonData))
 	if err != nil {
 		return nil, fmt.Errorf("error sending request to Python: %v", err)
 	}
-	defer func(Body io.ReadCloser) {
-		err := Body.Close()
-		if err != nil {
-
-		}
-	}(resp.Body)
+	defer resp.Body.Close()
 
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {

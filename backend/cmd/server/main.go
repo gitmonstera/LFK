@@ -75,6 +75,10 @@ func main() {
 		protected.GET("/exercises", workoutHandler.GetExercises)
 		protected.GET("/exercises/:id", workoutHandler.GetExercise)
 
+		// Эндпоинты для работы с упражнениями
+		protected.GET("/exercise_state", exerciseHandler.GetExerciseState) // Добавляем этот эндпоинт
+		protected.POST("/exercise/reset", exerciseHandler.ResetExercise)
+
 		// Тренировки
 		protected.POST("/workout/start", workoutHandler.StartWorkout)
 		protected.POST("/workout/end", workoutHandler.EndWorkout)
