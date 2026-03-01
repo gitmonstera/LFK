@@ -785,26 +785,33 @@ def connect_and_run(exercise_key):
     exercise_type = EXERCISE_TYPES[exercise_key]
 
     while True:  # Цикл для повторного выполнения упражнения
-        # Ждем пока упражнение сбросится на сервере
+        # Проверяем состояние упражнения
         print(f"\n{Colors.CYAN}⏳ Проверка состояния упражнения...{Colors.END}")
+
+        # Ждем готовности упражнения (не более 10 секунд)
         if not wait_for_exercise_reset(exercise_type):
+            # Если не готово, пробуем принудительный сброс
             print(f"{Colors.YELLOW}⚠️ Принудительный сброс через API...{Colors.END}")
             try:
-                requests.post(
+                reset_response = requests.post(
                     "http://localhost:8080/api/exercise/reset",
                     headers={"Authorization": f"Bearer {auth_token}"},
                     json={"exercise_type": exercise_type},
                     timeout=2
                 )
+                if reset_response.status_code == 200:
+                    print(f"{Colors.GREEN}✅ Упражнение принудительно сброшено{Colors.END}")
+                time.sleep(1)
             except:
                 pass
-            time.sleep(1)
 
         # Начинаем тренировку
         print(f"\n{Colors.CYAN}🔄 Начинаем тренировку...{Colors.END}")
         session_id = start_workout()
         if not session_id:
             return False
+
+        # ... остальной код ...
 
         # Кодируем токен для URL
         encoded_token = urllib.parse.quote(auth_token)
@@ -1004,6 +1011,9 @@ def check_exercise_state(exercise_type):
         )
         if response.status_code == 200:
             data = response.json()
+            # Для отладки
+            if data.get('structured'):
+                print(f"📊 Получено состояние: {data['structured']}")
             return data
         else:
             print(f"{Colors.YELLOW}⚠️ Не удалось получить состояние: {response.status_code}{Colors.END}")
@@ -1012,29 +1022,34 @@ def check_exercise_state(exercise_type):
         print(f"{Colors.YELLOW}⚠️ Ошибка при проверке состояния: {e}{Colors.END}")
         return None
 
-def wait_for_exercise_reset(exercise_type, max_attempts=5):
-    """Ждет пока упражнение не сбросится"""
+def wait_for_exercise_reset(exercise_type, max_attempts=10):
+    """Ждет пока упражнение не сбросится или не будет готово к началу"""
     for attempt in range(max_attempts):
         state = check_exercise_state(exercise_type)
         if state and state.get('structured'):
-            # Проверяем, что упражнение в начальном состоянии
             structured = state.get('structured', {})
             current_cycle = structured.get('current_cycle', 0)
             state_name = structured.get('state', '')
+            completed = structured.get('completed', False)
+            auto_reset = structured.get('auto_reset', False)
 
-            print(f"🔄 Проверка состояния: цикл={current_cycle}, состояние={state_name}")
+            print(f"🔄 Проверка состояния: цикл={current_cycle}, состояние={state_name}, завершено={completed}")
 
-            if current_cycle == 0 and state_name == 'waiting_fist':
+            # Если упражнение готово к началу
+            if not completed and current_cycle == 0 and state_name == 'waiting_fist':
                 print(f"{Colors.GREEN}✅ Упражнение готово к началу{Colors.END}")
                 return True
 
-            # Если упражнение все еще в completed, ждем
-            if state_name == 'completed':
-                print(f"{Colors.YELLOW}⏳ Упражнение еще завершено, ждем...{Colors.END}")
+            # Если упражнение завершено, но помечено для автосброса - ждем еще немного
+            if completed and auto_reset:
+                print(f"{Colors.YELLOW}⏳ Упражнение завершено, но будет сброшено при подключении...{Colors.END}")
+                # Даем время на автосброс
+                time.sleep(2)
+                continue
 
         time.sleep(1)
 
-    print(f"{Colors.RED}❌ Упражнение не сбросилось после {max_attempts} попыток{Colors.END}")
+    print(f"{Colors.YELLOW}⚠️ Упражнение все еще в состоянии completed, пробуем принудительный сброс{Colors.END}")
     return False
 
 def main():

@@ -144,10 +144,10 @@ class FistPalmExercise(BaseExercise):
         current_time = time.time()
 
         # Определяем, кулак ли это (0-2 пальца поднято)
-        is_fist = raised_fingers <= 2
+        is_fist = raised_fingers <= 0
 
         # Определяем, ладонь ли это (3-5 пальцев поднято)
-        is_palm = raised_fingers >= 3
+        is_palm = raised_fingers >= 5
 
         # Сброс флага завершения цикла
         self.cycle_completed = False
