@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"lfk-backend/internal/models"
+	"lfk-backend/internal/repository"
 	"lfk-backend/internal/websocket"
 	"lfk-backend/pkg/python_bridge"
 
@@ -28,26 +29,55 @@ type ExerciseHandler struct {
 	hub          *websocket.Hub
 	pythonClient *python_bridge.Client
 	sessions     map[string]*models.ExerciseSession
+	exerciseRepo *repository.ExerciseRepository // Добавляем репозиторий
 }
 
-func NewExerciseHandler(hub *websocket.Hub, pythonURL string) *ExerciseHandler {
+func NewExerciseHandler(
+	hub *websocket.Hub,
+	pythonURL string,
+	exerciseRepo *repository.ExerciseRepository, // Добавляем параметр
+) *ExerciseHandler {
 	return &ExerciseHandler{
 		hub:          hub,
 		pythonClient: python_bridge.NewClient(pythonURL),
 		sessions:     make(map[string]*models.ExerciseSession),
+		exerciseRepo: exerciseRepo, // Сохраняем репозиторий
 	}
+}
+
+// GetExerciseListFromDB - возвращает полный список упражнений из БД
+func (h *ExerciseHandler) GetExerciseListFromDB(c *gin.Context) {
+	log.Printf("📋 Запрос полного списка упражнений из БД")
+
+	// Получаем список упражнений из репозитория
+	exercises, err := h.exerciseRepo.GetExerciseList()
+	if err != nil {
+		log.Printf("❌ Ошибка получения списка упражнений из БД: %v", err)
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"error":   "Failed to get exercise list from database",
+			"details": err.Error(),
+		})
+		return
+	}
+
+	// Формируем ответ
+	response := models.ExerciseListResponse{
+		Items: exercises,
+	}
+
+	log.Printf("✅ Отправлено %d упражнений", len(exercises))
+	c.JSON(http.StatusOK, response)
 }
 
 // GetExerciseState - возвращает текущее состояние упражнения
 func (h *ExerciseHandler) GetExerciseState(c *gin.Context) {
 	exerciseType := c.Query("type")
 	if exerciseType == "" {
-		exerciseType = "fist-palm" // значение по умолчанию
+		exerciseType = "fist-palm"
 	}
 
 	log.Printf("📊 Запрос состояния упражнения: %s", exerciseType)
 
-	// Создаем запрос к Python серверу для получения состояния
 	stateRequest := map[string]interface{}{
 		"exercise_type":  exerciseType,
 		"get_state_only": true,
@@ -63,7 +93,6 @@ func (h *ExerciseHandler) GetExerciseState(c *gin.Context) {
 		return
 	}
 
-	// Формируем ответ
 	response := gin.H{
 		"status":           "success",
 		"current_exercise": resp.CurrentExercise,
@@ -71,7 +100,6 @@ func (h *ExerciseHandler) GetExerciseState(c *gin.Context) {
 		"auto_reset":       false,
 	}
 
-	// Добавляем структурированные данные если есть
 	if resp.Structured != nil {
 		response["structured"] = gin.H{
 			"state":            resp.Structured.State,
@@ -86,8 +114,9 @@ func (h *ExerciseHandler) GetExerciseState(c *gin.Context) {
 			"step_name":        resp.Structured.StepName,
 		}
 
-		// Обновляем флаг auto_reset
-		response["auto_reset"] = resp.Structured.AutoReset
+		if stateStr, ok := resp.Structured.State.(string); ok {
+			response["auto_reset"] = (stateStr == "completed")
+		}
 	}
 
 	log.Printf("📊 Состояние упражнения: cycle=%d, completed=%v",
@@ -112,7 +141,6 @@ func (h *ExerciseHandler) ResetExercise(c *gin.Context) {
 
 	log.Printf("🔄 Получен запрос на сброс упражнения: %s", req.ExerciseType)
 
-	// Отправляем команду сброса в Python процессор
 	resetRequest := map[string]interface{}{
 		"exercise_type":         req.ExerciseType,
 		"reset_for_new_attempt": true,
@@ -153,6 +181,7 @@ func (h *ExerciseHandler) ResetExercise(c *gin.Context) {
 	c.JSON(http.StatusOK, response)
 }
 
+// HandleWebSocket - обработка WebSocket соединений
 func (h *ExerciseHandler) HandleWebSocket(w http.ResponseWriter, r *http.Request, exerciseId string) {
 	log.Printf("WebSocket connection request for exercise: %s", exerciseId)
 
@@ -161,7 +190,6 @@ func (h *ExerciseHandler) HandleWebSocket(w http.ResponseWriter, r *http.Request
 	log.Printf("URL: %s", r.URL.String())
 	log.Printf("Token from query: %s", r.URL.Query().Get("token"))
 
-	// Проверяем, прошел ли пользователь через middleware
 	userID := r.Context().Value("user_id")
 	log.Printf("User ID from context: %v", userID)
 
@@ -201,6 +229,7 @@ func (h *ExerciseHandler) HandleWebSocket(w http.ResponseWriter, r *http.Request
 	go h.writePump(client)
 }
 
+// readPump - чтение сообщений от клиента
 func (h *ExerciseHandler) readPump(client *websocket.Client) {
 	defer func() {
 		log.Printf("readPump exiting for client: %s", client.ExerciseID)
@@ -224,18 +253,15 @@ func (h *ExerciseHandler) readPump(client *websocket.Client) {
 
 		log.Printf("Received message from client %s, size: %d bytes", client.ExerciseID, len(message))
 
-		// Парсим сообщение клиента
 		var clientMsg map[string]interface{}
 		if err := json.Unmarshal(message, &clientMsg); err != nil {
 			log.Printf("Error parsing client message: %v", err)
 			continue
 		}
 
-		// Проверяем, есть ли запрос на сброс
 		if reset, ok := clientMsg["reset_for_new_attempt"]; ok && reset == true {
 			log.Printf("🔄 Получен запрос на сброс упражнения через WebSocket")
 
-			// Отправляем команду сброса в Python
 			resetRequest := map[string]interface{}{
 				"exercise_type":         client.ExerciseID,
 				"reset_for_new_attempt": true,
@@ -283,7 +309,7 @@ func (h *ExerciseHandler) readPump(client *websocket.Client) {
 	}
 }
 
-// Новый метод для обработки сброса
+// processFrameWithReset - обработка сброса
 func (h *ExerciseHandler) processFrameWithReset(request map[string]interface{}) (*models.FrameFeedback, error) {
 	log.Printf("🔄 Отправка команды сброса в Python")
 
@@ -293,7 +319,6 @@ func (h *ExerciseHandler) processFrameWithReset(request map[string]interface{}) 
 		return nil, err
 	}
 
-	// Конвертируем StructuredData для модели
 	var structured *models.StructuredData
 	if resp.Structured != nil {
 		structured = &models.StructuredData{
@@ -329,6 +354,7 @@ func (h *ExerciseHandler) processFrameWithReset(request map[string]interface{}) 
 	return feedback, nil
 }
 
+// writePump - отправка сообщений клиенту
 func (h *ExerciseHandler) writePump(client *websocket.Client) {
 	ticker := time.NewTicker(30 * time.Second)
 	defer func() {
@@ -373,6 +399,7 @@ func (h *ExerciseHandler) writePump(client *websocket.Client) {
 	}
 }
 
+// processFrame - обработка кадра
 func (h *ExerciseHandler) processFrame(messageStr string) (*models.FrameFeedback, error) {
 	log.Printf("📤 Отправка в Python, размер данных: %d байт", len(messageStr))
 
@@ -402,7 +429,6 @@ func (h *ExerciseHandler) processFrame(messageStr string) (*models.FrameFeedback
 		return nil, err
 	}
 
-	// Конвертируем StructuredData для модели
 	var structured *models.StructuredData
 	if resp.Structured != nil {
 		structured = &models.StructuredData{
@@ -444,6 +470,7 @@ func (h *ExerciseHandler) processFrame(messageStr string) (*models.FrameFeedback
 	return feedback, nil
 }
 
+// StartExercise - начало упражнения
 func (h *ExerciseHandler) StartExercise(c *gin.Context) {
 	var req models.ExerciseRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -453,7 +480,7 @@ func (h *ExerciseHandler) StartExercise(c *gin.Context) {
 
 	session := &models.ExerciseSession{
 		ID:        uuid.New().String(),
-		UserID:    "user-1",
+		UserID:    c.GetString("user_id"),
 		Type:      req.ExerciseType,
 		StartTime: time.Now(),
 		IsActive:  true,
@@ -464,6 +491,7 @@ func (h *ExerciseHandler) StartExercise(c *gin.Context) {
 	c.JSON(http.StatusOK, session)
 }
 
+// StopExercise - завершение упражнения
 func (h *ExerciseHandler) StopExercise(c *gin.Context) {
 	var req struct {
 		SessionID string `json:"sessionId" binding:"required"`

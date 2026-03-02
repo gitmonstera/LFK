@@ -54,7 +54,29 @@ type ExerciseRequest struct {
 	ExerciseType ExerciseType `json:"exerciseType" binding:"required"`
 }
 
-// Exercise модель упражнения
+// ExerciseInfo - информация об упражнении для списка
+type ExerciseInfo struct {
+	ID              string         `db:"id" json:"exercise_id"`
+	Name            string         `db:"name" json:"name"`
+	Description     string         `db:"description" json:"description"`
+	Category        string         `db:"category" json:"category"`
+	CategoryID      int            `db:"category_id" json:"category_id"`
+	CategoryIcon    string         `db:"category_icon" json:"category_icon"`
+	CategoryColor   string         `db:"category_color" json:"category_color"`
+	DifficultyLevel int            `db:"difficulty_level" json:"difficulty_level"`
+	TargetMuscles   pq.StringArray `db:"target_muscles" json:"target_muscles"` // Используем pq.StringArray
+	Instructions    pq.StringArray `db:"instructions" json:"instructions"`     // Используем pq.StringArray
+	DurationSeconds int            `db:"duration_seconds" json:"duration_seconds"`
+	ImageURL        *string        `db:"image_url" json:"image_url"`
+	VideoURL        *string        `db:"video_url" json:"video_url"`
+}
+
+// ExerciseListResponse - ответ со списком упражнений
+type ExerciseListResponse struct {
+	Items []ExerciseInfo `json:"items"`
+}
+
+// Exercise модель упражнения (полная)
 type Exercise struct {
 	ID              string          `db:"id" json:"id"`
 	Name            string          `db:"name" json:"name"`
@@ -70,4 +92,14 @@ type Exercise struct {
 	IsActive        bool            `db:"is_active" json:"is_active"`
 	CreatedAt       time.Time       `db:"created_at" json:"created_at"`
 	Metadata        []byte          `db:"metadata" json:"metadata,omitempty"`
+}
+
+// Category модель категории упражнений
+type Category struct {
+	ID          int       `db:"id" json:"id"`
+	Name        string    `db:"name" json:"name"`
+	Description string    `db:"description" json:"description"`
+	Icon        string    `db:"icon" json:"icon"`
+	Color       string    `db:"color" json:"color"`
+	CreatedAt   time.Time `db:"created_at" json:"created_at"`
 }

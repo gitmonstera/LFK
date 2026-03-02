@@ -44,7 +44,11 @@ func main() {
 	statsRepo := repository.NewStatsRepository(db)
 
 	// Создаем обработчики
-	exerciseHandler := handlers.NewExerciseHandler(hub, "http://localhost:5001")
+	exerciseHandler := handlers.NewExerciseHandler(
+		hub,
+		"http://localhost:5001",
+		exerciseRepo, // Передаем репозиторий
+	)
 	userHandler := handlers.NewUserHandler(userRepo, jwtManager)
 	workoutHandler := handlers.NewWorkoutHandler(workoutRepo, statsRepo, exerciseRepo)
 	statsHandler := handlers.NewStatsHandler(statsRepo)
@@ -74,9 +78,10 @@ func main() {
 		// Упражнения
 		protected.GET("/exercises", workoutHandler.GetExercises)
 		protected.GET("/exercises/:id", workoutHandler.GetExercise)
+		protected.GET("/get_exercise_list", exerciseHandler.GetExerciseListFromDB) // Новый эндпоинт из БД
 
 		// Эндпоинты для работы с упражнениями
-		protected.GET("/exercise_state", exerciseHandler.GetExerciseState) // Добавляем этот эндпоинт
+		protected.GET("/exercise_state", exerciseHandler.GetExerciseState)
 		protected.POST("/exercise/reset", exerciseHandler.ResetExercise)
 
 		// Тренировки
