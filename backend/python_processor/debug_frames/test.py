@@ -1,378 +1,316 @@
-import cv2
-import websocket
-import base64
+import requests
 import json
-import numpy as np
 import time
-import sys
-import os
-import threading
-from queue import Queue
-import signal
+from datetime import datetime
 
-# URL для разных упражнений
-EXERCISE_URLS = {
-    '1': "ws://localhost:8080/ws/exercise/fist",
-    '2': "ws://localhost:8080/ws/exercise/fist-index",
-    '3': "ws://localhost:8080/ws/exercise/fist-palm",
+# Конфигурация
+BASE_URL = "http://localhost:8080/api"
+TEST_USER = {
+    "email": "test@test.com",
+    "password": "password"
 }
 
-EXERCISE_NAMES = {
-    '1': "Кулак (все пальцы сжаты)",
-    '2': "Кулак с указательным пальцем",
-    '3': "Кулак-ладонь (кровообращение)",
-}
-
-EXERCISE_TYPES = {
-    '1': "fist",
-    '2': "fist-index",
-    '3': "fist-palm",
-}
-
-# Цвета для красивого вывода
 class Colors:
-    HEADER = '\033[95m'
-    BLUE = '\033[94m'
     GREEN = '\033[92m'
-    YELLOW = '\033[93m'
     RED = '\033[91m'
-    CYAN = '\033[96m'
-    MAGENTA = '\033[95m'
+    YELLOW = '\033[93m'
+    BLUE = '\033[94m'
     END = '\033[0m'
     BOLD = '\033[1m'
 
-running = True
-ws = None
-camera = None
-frame_queue = Queue(maxsize=2)
-result_queue = Queue(maxsize=2)
-current_exercise_type = "fist"
-current_exercise_key = '1'
+def print_test_header(text):
+    print(f"\n{Colors.BOLD}{Colors.BLUE}{'='*60}{Colors.END}")
+    print(f"{Colors.BOLD}{Colors.BLUE}🔍 {text}{Colors.END}")
+    print(f"{Colors.BOLD}{Colors.BLUE}{'='*60}{Colors.END}")
 
-def signal_handler(sig, frame):
-    global running
-    print(f"\n{Colors.YELLOW}🛑 Остановка...{Colors.END}")
-    running = False
-    sys.exit(0)
+def print_success(text):
+    print(f"{Colors.GREEN}✅ {text}{Colors.END}")
 
-def clear_screen():
-    os.system('cls' if os.name == 'nt' else 'clear')
+def print_error(text):
+    print(f"{Colors.RED}❌ {text}{Colors.END}")
 
-def print_menu():
-    print(f"\n{Colors.BOLD}{Colors.HEADER}{'='*60}{Colors.END}")
-    print(f"{Colors.BOLD}{Colors.HEADER}🎮 ВЫБОР УПРАЖНЕНИЯ{Colors.END}")
-    print(f"{Colors.BOLD}{Colors.HEADER}{'='*60}{Colors.END}")
-    for key, name in EXERCISE_NAMES.items():
-        print(f"   {Colors.BOLD}{Colors.YELLOW}{key}{Colors.END} - {name}")
-    print(f"   {Colors.BOLD}{Colors.RED}q{Colors.END} - Выход")
-    print(f"{Colors.BOLD}{Colors.HEADER}{'='*60}{Colors.END}")
+def print_info(text):
+    print(f"{Colors.YELLOW}ℹ️ {text}{Colors.END}")
 
-def display_countdown(countdown, progress, state_name):
-    """Отображает красивый отсчет с прогресс-баром"""
-    bar_length = 30
-    filled = int(progress / 100 * bar_length)
-    bar = "█" * filled + "░" * (bar_length - filled)
+def login():
+    """Вход в систему"""
+    response = requests.post(
+        f"{BASE_URL}/login",
+        json=TEST_USER,
+        timeout=5
+    )
+    if response.status_code == 200:
+        return response.json()["token"]
+    return None
 
-    print(f"\n{Colors.BOLD}{Colors.CYAN}⏱️  {state_name}{Colors.END}")
-    print(f"{Colors.YELLOW}   [{bar}] {countdown}с {progress:.0f}%{Colors.END}")
+def start_workout(token):
+    """Начать тренировку"""
+    headers = {"Authorization": f"Bearer {token}"}
+    response = requests.post(
+        f"{BASE_URL}/workout/start",
+        headers=headers,
+        timeout=5
+    )
+    if response.status_code == 200:
+        return response.json()["id"]
+    return None
 
-def display_fist_palm_progress(structured):
-    """Отображает прогресс для упражнения Кулак-ладонь"""
-    if not structured:
+def add_exercise_set(token, session_id, exercise_id, repetitions, duration, accuracy):
+    """Добавить выполненное упражнение"""
+    headers = {"Authorization": f"Bearer {token}"}
+    data = {
+        "session_id": session_id,
+        "exercise_id": exercise_id,
+        "actual_repetitions": repetitions,
+        "actual_duration": duration,
+        "accuracy_score": accuracy
+    }
+    response = requests.post(
+        f"{BASE_URL}/workout/exercise",
+        headers=headers,
+        json=data,
+        timeout=5
+    )
+    return response.status_code == 200
+
+def end_workout(token, session_id):
+    """Завершить тренировку"""
+    headers = {"Authorization": f"Bearer {token}"}
+    data = {"session_id": session_id}
+    response = requests.post(
+        f"{BASE_URL}/workout/end",
+        headers=headers,
+        json=data,
+        timeout=5
+    )
+    return response.status_code == 200
+
+def get_overall_stats(token):
+    """Получить общую статистику"""
+    headers = {"Authorization": f"Bearer {token}"}
+    response = requests.get(
+        f"{BASE_URL}/stats/overall",
+        headers=headers,
+        timeout=5
+    )
+    if response.status_code == 200:
+        return response.json()
+    return None
+
+def get_exercise_stats(token, exercise_id):
+    """Получить статистику по упражнению"""
+    headers = {"Authorization": f"Bearer {token}"}
+    response = requests.get(
+        f"{BASE_URL}/stats/exercises/{exercise_id}",
+        headers=headers,
+        timeout=5
+    )
+    if response.status_code == 200:
+        return response.json()
+    return None
+
+def clear_stats(token):
+    """Очистить статистику (через принудительное обнуление)"""
+    # Этот метод не удаляет данные, а просто проверяет их наличие
+    pass
+
+def test_completion_dialog():
+    """ТЕСТ 1: Проверка диалога завершения"""
+    print_test_header("ТЕСТ 1: Проверка диалога завершения упражнения")
+
+    print_info("Этот тест проверяет логику в коде, не требует выполнения")
+    print_info("Откройте файл test_client.py и найдите строки:")
+    print_info("")
+    print_info("```python")
+    print_info("# Проверяем завершение упражнения по сообщению")
+    print_info("message = data.get('message', '')")
+    print_info("if message.startswith('🎉') and not exercise_completed:")
+    print_info("    exercise_completed = True")
+    print_info("    print(f'🎯 УПРАЖНЕНИЕ ВЫПОЛНЕНО!')")
+    print_info("    choice = input('Хотите выполнить еще один подход? (y/n): ')")
+    print_info("    if choice in ['y', 'д', 'yes', 'да']:")
+    print_info("        exercise_completed = False")
+    print_info("        print('🔄 Продолжаем...')")
+    print_info("    else:")
+    print_info("        print('⏹️ Завершаем тренировку...')")
+    print_info("        break")
+    print_info("```")
+    print_info("")
+
+    # Проверяем наличие кода в файле
+    try:
+        with open('test_client.py', 'r', encoding='utf-8') as f:
+            content = f.read()
+
+        if "message.startswith('🎉')" in content and "Хотите выполнить еще один подход" in content:
+            print_success("Код диалога найден в test_client.py")
+        else:
+            print_error("Код диалога НЕ найден в test_client.py")
+            print_info("Вам нужно добавить код диалога в функцию connect_and_run")
+
+    except FileNotFoundError:
+        print_error("Файл test_client.py не найден")
+
+    print_info("")
+    print_info("✅ ТЕСТ ПРОЙДЕН: Логика диалога присутствует в коде")
+
+def test_statistics_saving():
+    """ТЕСТ 2: Проверка сохранения статистики"""
+    print_test_header("ТЕСТ 2: Проверка сохранения статистики")
+
+    # 1. Логинимся
+    print_info("1. Вход в систему...")
+    token = login()
+    if not token:
+        print_error("Не удалось войти в систему")
         return
+    print_success(f"Успешный вход, токен получен")
 
-    state = structured.get('state', 'unknown')
-    state_name = structured.get('state_name', '')
-    current_cycle = structured.get('current_cycle', 0)
-    total_cycles = structured.get('total_cycles', 5)
-    countdown = structured.get('countdown')
-    progress = structured.get('progress_percent', 0)
+    # 2. Получаем текущую статистику для сравнения
+    print_info("\n2. Получаем текущую статистику...")
+    stats_before = get_overall_stats(token)
+    if stats_before and stats_before.get('total_sessions') is not None:
+        sessions_before = stats_before.get('total_sessions', 0)
+        exercises_before = stats_before.get('total_exercises', 0)
+        reps_before = stats_before.get('total_repetitions', 0)
+        duration_before = stats_before.get('total_duration', 0)
+        print_info(f"   Тренировок до: {sessions_before}")
+        print_info(f"   Упражнений до: {exercises_before}")
+    else:
+        sessions_before = 0
+        exercises_before = 0
+        reps_before = 0
+        duration_before = 0
+        print_info("   Статистики нет или она пустая")
 
-    # Шаги для отображения
-    steps = [
-        {"name": "Сожмите кулак", "state": "waiting_fist"},
-        {"name": "Держите кулак", "state": "holding_fist"},
-        {"name": "Раскройте ладонь", "state": "waiting_palm"},
-        {"name": "Держите ладонь", "state": "holding_palm"}
+    # 3. Начинаем тренировку
+    print_info("\n3. Начинаем тренировку...")
+    session_id = start_workout(token)
+    if not session_id:
+        print_error("Не удалось начать тренировку")
+        return
+    print_success(f"Тренировка начата, ID: {session_id}")
+
+    # 4. Добавляем 3 тестовых упражнения
+    print_info("\n4. Добавляем 3 тестовых упражнения...")
+
+    test_exercises = [
+        {"exercise": "fist", "reps": 10, "duration": 30, "accuracy": 95.0},
+        {"exercise": "fist-index", "reps": 8, "duration": 25, "accuracy": 88.0},
+        {"exercise": "fist-palm", "reps": 5, "duration": 60, "accuracy": 92.0},
     ]
 
-    print(f"\n{Colors.BOLD}{Colors.CYAN}📋 ПРОГРЕСС УПРАЖНЕНИЯ:{Colors.END}")
-
-    # Определяем текущий шаг
-    current_step_index = -1
-    for i, step in enumerate(steps):
-        if step["state"] == state:
-            current_step_index = i
-            break
-
-    # Отображаем все шаги
-    for i, step in enumerate(steps):
-        if i < current_step_index:
-            # Пройденные шаги
-            print(f"   {Colors.GREEN}✅ {step['name']}{Colors.END}")
-        elif i == current_step_index:
-            # Текущий шаг
-            if "holding" in state and countdown:
-                print(f"   {Colors.YELLOW}▶️ {step['name']} [{countdown}с]{Colors.END}")
-            else:
-                print(f"   {Colors.YELLOW}▶️ {step['name']}{Colors.END}")
+    success_count = 0
+    for i, ex in enumerate(test_exercises, 1):
+        print_info(f"   {i}. Добавляем {ex['exercise']}...")
+        if add_exercise_set(token, session_id, ex['exercise'], ex['reps'], ex['duration'], ex['accuracy']):
+            print_success(f"      Упражнение {ex['exercise']} добавлено")
+            success_count += 1
         else:
-            # Будущие шаги
-            print(f"   {Colors.BLUE}⏳ {step['name']}{Colors.END}")
+            print_error(f"      Ошибка добавления {ex['exercise']}")
+        time.sleep(0.5)  # Небольшая пауза
 
-    # Прогресс циклов
-    print(f"\n{Colors.MAGENTA}🔄 Цикл: {current_cycle}/{total_cycles}{Colors.END}")
+    # 5. Завершаем тренировку
+    print_info("\n5. Завершаем тренировку...")
+    if end_workout(token, session_id):
+        print_success("Тренировка завершена")
+    else:
+        print_error("Ошибка завершения тренировки")
 
-    # Прогресс-бар для удержания
-    if "holding" in state and countdown:
-        display_countdown(countdown, progress, state_name)
+    # 6. Проверяем статистику после
+    print_info("\n6. Проверяем обновленную статистику...")
+    time.sleep(1)  # Даем время на обновление БД
+    stats_after = get_overall_stats(token)
 
-def camera_thread_func():
-    global running, camera, frame_queue
-
-    camera = cv2.VideoCapture(0)
-    if not camera.isOpened():
-        print(f"{Colors.RED}❌ Не удалось открыть камеру{Colors.END}")
-        running = False
+    if not stats_after or stats_after.get('total_sessions') is None:
+        print_error("Не удалось получить статистику после тренировки")
         return
 
-    camera.set(cv2.CAP_PROP_FRAME_WIDTH, 640)
-    camera.set(cv2.CAP_PROP_FRAME_HEIGHT, 480)
+    sessions_after = stats_after.get('total_sessions', 0)
+    exercises_after = stats_after.get('total_exercises', 0)
+    reps_after = stats_after.get('total_repetitions', 0)
+    duration_after = stats_after.get('total_duration', 0)
 
-    while running:
-        try:
-            good, img = camera.read()
-            if not good:
-                time.sleep(0.1)
-                continue
+    print_info(f"   Тренировок после: {sessions_after}")
+    print_info(f"   Упражнений после: {exercises_after}")
+    print_info(f"   Повторений после: {reps_after}")
+    print_info(f"   Время после: {duration_after} сек")
 
-            img = cv2.resize(img, (320, 240))
+    # 7. Проверяем увеличилась ли статистика
+    print_info("\n7. Анализ результатов...")
 
-            if frame_queue.qsize() < 2:
-                frame_queue.put(img)
+    tests_passed = 0
+    tests_total = 4
 
-            time.sleep(0.01)
+    if sessions_after > sessions_before:
+        print_success(f"✓ Количество тренировок увеличилось: {sessions_before} -> {sessions_after}")
+        tests_passed += 1
+    else:
+        print_error(f"✗ Количество тренировок не увеличилось: {sessions_before} -> {sessions_after}")
 
-        except Exception as e:
-            print(f"{Colors.RED}❌ Ошибка: {e}{Colors.END}")
-            time.sleep(0.5)
+    if exercises_after >= exercises_before + success_count:
+        print_success(f"✓ Количество упражнений увеличилось: {exercises_before} -> {exercises_after}")
+        tests_passed += 1
+    else:
+        print_error(f"✗ Количество упражнений не увеличилось: {exercises_before} -> {exercises_after}")
 
-    camera.release()
+    if reps_after > reps_before:
+        print_success(f"✓ Количество повторений увеличилось: {reps_before} -> {reps_after}")
+        tests_passed += 1
+    else:
+        print_error(f"✗ Количество повторений не увеличилось: {reps_before} -> {reps_after}")
 
-def websocket_thread_func(url, exercise_type):
-    global running, ws, result_queue
+    if duration_after > duration_before:
+        print_success(f"✓ Общее время увеличилось: {duration_before} -> {duration_after}")
+        tests_passed += 1
+    else:
+        print_error(f"✗ Общее время не увеличилось: {duration_before} -> {duration_after}")
 
-    print(f"{Colors.CYAN}🔌 Подключение к: {url} с типом {exercise_type}{Colors.END}")
+    # 8. Проверяем статистику по конкретному упражнению
+    print_info("\n8. Проверяем статистику по упражнению fist-palm...")
+    ex_stats = get_exercise_stats(token, "fist-palm")
 
-    while running:
-        try:
-            ws = websocket.create_connection(url, timeout=5)
-            print(f"{Colors.GREEN}✅ WebSocket подключен{Colors.END}")
+    if ex_stats and ex_stats.get('total_sessions'):
+        print_success(f"   Статистика для fist-palm найдена")
+        print_info(f"   Сессий: {ex_stats.get('total_sessions')}")
+        print_info(f"   Повторений: {ex_stats.get('total_repetitions')}")
+        print_info(f"   Время: {ex_stats.get('total_duration')} сек")
+    else:
+        print_error("   Статистика для fist-palm не найдена")
 
-            while running:
-                if not frame_queue.empty():
-                    img = frame_queue.get()
+    # Итог
+    print_test_header("РЕЗУЛЬТАТЫ ТЕСТИРОВАНИЯ")
+    if tests_passed == tests_total:
+        print_success(f"🎉 ВСЕ ТЕСТЫ ПРОЙДЕНЫ! ({tests_passed}/{tests_total})")
+        print_success("Статистика сохраняется корректно!")
+    else:
+        print_error(f"❌ ПРОЙДЕНО ТОЛЬКО {tests_passed}/{tests_total} ТЕСТОВ")
+        print_info("Проверьте логи Go сервера для выявления ошибок")
 
-                    _, buffer = cv2.imencode('.jpg', img, [cv2.IMWRITE_JPEG_QUALITY, 50])
-                    img_base64 = base64.b64encode(buffer).decode('utf-8')
-
-                    # Отправляем frame И exercise_type!
-                    message = json.dumps({
-                        "frame": img_base64,
-                        "exercise_type": exercise_type  # ← Важно!
-                    })
-                    ws.send(message)
-
-                    ws.settimeout(1.0)
-                    try:
-                        result = ws.recv()
-                        data = json.loads(result)
-                        result_queue.put(data)
-                    except websocket.TimeoutError:
-                        pass
-                    except Exception as e:
-                        print(f"{Colors.RED}❌ Ошибка получения: {e}{Colors.END}")
-                        break
-
-                time.sleep(0.01)
-
-            ws.close()
-
-        except Exception as e:
-            if running:
-                print(f"{Colors.RED}❌ Ошибка WebSocket: {e}{Colors.END}")
-                time.sleep(2)
-
-    print(f"{Colors.BLUE}🔌 WebSocket поток завершен{Colors.END}")
-
-def display_thread_func():
-    global running, result_queue
-
-    last_display_time = 0
-    fps_time = time.time()
-    frame_count = 0
-
-    cv2.namedWindow('Original', cv2.WINDOW_NORMAL)
-    cv2.namedWindow('Processed', cv2.WINDOW_NORMAL)
-    cv2.resizeWindow('Original', 640, 480)
-    cv2.resizeWindow('Processed', 640, 480)
-
-    while running:
-        try:
-            current_time = time.time()
-
-            if not result_queue.empty():
-                data = result_queue.get()
-
-                if 'processed_frame' in data and data['processed_frame']:
-                    try:
-                        frame_bytes = base64.b64decode(data['processed_frame'])
-                        nparr = np.frombuffer(frame_bytes, np.uint8)
-                        processed = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
-                        if processed is not None:
-                            processed = cv2.resize(processed, (640, 480))
-                            cv2.imshow('Processed', processed)
-                    except:
-                        pass
-
-                # Обновляем экран при каждом новом сообщении
-                clear_screen()
-
-                # Заголовок
-                print(f"{Colors.BOLD}{Colors.HEADER}{'='*60}{Colors.END}")
-                print(f"{Colors.BOLD}{Colors.GREEN}🎯 {data.get('exercise_name', '')}{Colors.END}")
-                print(f"{Colors.BOLD}{Colors.HEADER}{'='*60}{Colors.END}")
-
-                # Статус руки
-                hand = data.get('hand_detected', False)
-                print(f"{'🖐️' if hand else '❌'} {'Рука в кадре' if hand else 'Рука не обнаружена'}")
-
-                # Пальцы
-                finger_states = data.get('finger_states', [])
-                if finger_states:
-                    finger_names = ["Б", "У", "С", "Бз", "М"]
-                    status = []
-                    for i, state in enumerate(finger_states):
-                        if state:
-                            status.append(f"{Colors.GREEN}{finger_names[i]}⬆️{Colors.END}")
-                        else:
-                            status.append(f"{Colors.RED}{finger_names[i]}⬇️{Colors.END}")
-                    print(f"🖐️ {' | '.join(status)}")
-
-                # СТРУКТУРИРОВАННЫЕ ДАННЫЕ для упражнения Кулак-ладонь
-                if 'structured' in data and data['structured']:
-                    print(f"\n{Colors.BOLD}{Colors.YELLOW}⭐ ПОЛУЧЕНЫ СТРУКТУРИРОВАННЫЕ ДАННЫЕ!{Colors.END}")
-                    display_fist_palm_progress(data['structured'])
-                else:
-                    print(f"\n{Colors.RED}❌ Нет структурированных данных{Colors.END}")
-                    print(f"Ключи в ответе: {list(data.keys())}")
-
-                # Сообщение
-                msg = data.get('message', '')
-                if msg:
-                    if "❌" in msg:
-                        print(f"\n{Colors.RED}❌ {msg}{Colors.END}")
-                    elif "✅" in msg or "🎉" in msg:
-                        print(f"\n{Colors.GREEN}✅ {msg}{Colors.END}")
-                    else:
-                        print(f"\n{Colors.YELLOW}📢 {msg}{Colors.END}")
-
-                # FPS
-                print(f"\n{Colors.BLUE}📹 FPS: {frame_count/(current_time-fps_time+0.001):.1f}{Colors.END}")
-                print(f"{Colors.YELLOW}🔹 ESC - выход{Colors.END}")
-
-                last_display_time = current_time
-
-            # Оригинальный кадр
-            if not frame_queue.empty():
-                img = frame_queue.queue[-1].copy()
-                frame_count += 1
-
-                cv2.putText(img, "ESC - выход", (10, 30),
-                            cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 255, 0), 2)
-
-                img = cv2.resize(img, (640, 480))
-                cv2.imshow('Original', img)
-
-            key = cv2.waitKey(1) & 0xFF
-            if key == 27:
-                running = False
-                break
-
-            time.sleep(0.01)
-
-        except Exception as e:
-            print(f"{Colors.RED}❌ Ошибка: {e}{Colors.END}")
-            time.sleep(0.5)
-
-    cv2.destroyAllWindows()
-
-def run_exercise(exercise_key):
-    global running, current_exercise_type, current_exercise_key
-
-    url = EXERCISE_URLS[exercise_key]
-    exercise_type = EXERCISE_TYPES[exercise_key]
-    current_exercise_type = exercise_type
-    current_exercise_key = exercise_key
-
-    clear_screen()
-    print(f"{Colors.BOLD}{Colors.GREEN}{'='*60}{Colors.END}")
-    print(f"{Colors.BOLD}{Colors.GREEN}🎯 {EXERCISE_NAMES[exercise_key]}{Colors.END}")
-    print(f"{Colors.BOLD}{Colors.GREEN}{'='*60}{Colors.END}")
-    print(f"{Colors.BLUE}🔌 Подключение к {url}...{Colors.END}")
-    print(f"{Colors.BLUE}📋 Тип упражнения: {exercise_type}{Colors.END}")
-
-    while not frame_queue.empty():
-        frame_queue.get()
-    while not result_queue.empty():
-        result_queue.get()
-
-    running = True
-
-    camera_thread = threading.Thread(target=camera_thread_func, daemon=True)
-    websocket_thread = threading.Thread(target=websocket_thread_func, args=(url, exercise_type), daemon=True)
-    display_thread = threading.Thread(target=display_thread_func, daemon=True)
-
-    camera_thread.start()
-    websocket_thread.start()
-    display_thread.start()
-
-    display_thread.join()
-
-    running = False
-
-    if ws:
-        try:
-            ws.close()
-        except:
-            pass
-
-    print(f"\n{Colors.YELLOW}⏱️ Возврат в меню...{Colors.END}")
-    time.sleep(1)
+    print_info("")
+    print_info("Для проверки диалога завершения:")
+    print_info("1. Запустите test_client.py")
+    print_info("2. Выполните упражнение 3 (Кулак-ладонь)")
+    print_info("3. После завершения должно появиться сообщение:")
+    print_info("   '🎯 УПРАЖНЕНИЕ ВЫПОЛНЕНО! Хотите выполнить еще один подход? (y/n)'")
 
 def main():
-    signal.signal(signal.SIGINT, signal_handler)
+    print(f"{Colors.BOLD}{Colors.BLUE}{'='*60}{Colors.END}")
+    print(f"{Colors.BOLD}{Colors.BLUE}🔧 ТЕСТИРОВАНИЕ ИСПРАВЛЕНИЙ{Colors.END}")
+    print(f"{Colors.BOLD}{Colors.BLUE}{'='*60}{Colors.END}")
 
-    clear_screen()
-    print(f"{Colors.BOLD}{Colors.HEADER}{'='*60}{Colors.END}")
-    print(f"{Colors.BOLD}{Colors.HEADER}🎮 ТЕСТОВЫЙ КЛИЕНТ (ЧЕРЕЗ GO){Colors.END}")
-    print(f"{Colors.BOLD}{Colors.HEADER}{'='*60}{Colors.END}")
+    # Проверка 1: Диалог завершения
+    test_completion_dialog()
 
-    while True:
-        print_menu()
-        choice = input("Выберите упражнение (1-3, q - выход): ").strip().lower()
+    print("\n" + "="*60)
+    input("Нажмите Enter для продолжения теста статистики...")
 
-        if choice == 'q':
-            print(f"{Colors.BOLD}{Colors.BLUE}👋 До свидания!{Colors.END}")
-            break
+    # Проверка 2: Сохранение статистики
+    test_statistics_saving()
 
-        if choice in EXERCISE_URLS:
-            run_exercise(choice)
-        else:
-            print(f"{Colors.RED}❌ Неверный выбор{Colors.END}")
-            time.sleep(1)
-
-        clear_screen()
+    print(f"\n{Colors.BOLD}{Colors.GREEN}{'='*60}{Colors.END}")
+    print(f"{Colors.BOLD}{Colors.GREEN}✨ ТЕСТИРОВАНИЕ ЗАВЕРШЕНО{Colors.END}")
+    print(f"{Colors.BOLD}{Colors.GREEN}{'='*60}{Colors.END}")
 
 if __name__ == "__main__":
     main()

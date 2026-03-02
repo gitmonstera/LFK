@@ -38,8 +38,132 @@ func NewExerciseHandler(hub *websocket.Hub, pythonURL string) *ExerciseHandler {
 	}
 }
 
+// GetExerciseState - возвращает текущее состояние упражнения
+func (h *ExerciseHandler) GetExerciseState(c *gin.Context) {
+	exerciseType := c.Query("type")
+	if exerciseType == "" {
+		exerciseType = "fist-palm" // значение по умолчанию
+	}
+
+	log.Printf("📊 Запрос состояния упражнения: %s", exerciseType)
+
+	// Создаем запрос к Python серверу для получения состояния
+	stateRequest := map[string]interface{}{
+		"exercise_type":  exerciseType,
+		"get_state_only": true,
+	}
+
+	resp, err := h.pythonClient.ProcessFrame(stateRequest)
+	if err != nil {
+		log.Printf("❌ Ошибка получения состояния от Python: %v", err)
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"error":   "Failed to get exercise state",
+			"details": err.Error(),
+		})
+		return
+	}
+
+	// Формируем ответ
+	response := gin.H{
+		"status":           "success",
+		"current_exercise": resp.CurrentExercise,
+		"exercise_name":    resp.ExerciseName,
+		"auto_reset":       false,
+	}
+
+	// Добавляем структурированные данные если есть
+	if resp.Structured != nil {
+		response["structured"] = gin.H{
+			"state":            resp.Structured.State,
+			"state_name":       resp.Structured.StateName,
+			"current_cycle":    resp.Structured.Cycle,
+			"total_cycles":     resp.Structured.TotalCycles,
+			"completed":        resp.Structured.Completed,
+			"countdown":        resp.Structured.Countdown,
+			"progress_percent": resp.Structured.Progress,
+			"message":          resp.Structured.Message,
+			"step":             resp.Structured.Step,
+			"step_name":        resp.Structured.StepName,
+		}
+
+		// Обновляем флаг auto_reset
+		response["auto_reset"] = resp.Structured.AutoReset
+	}
+
+	log.Printf("📊 Состояние упражнения: cycle=%d, completed=%v",
+		resp.Structured.Cycle, resp.Structured.Completed)
+	c.JSON(http.StatusOK, response)
+}
+
+// ResetExercise - универсальный сброс упражнения
+func (h *ExerciseHandler) ResetExercise(c *gin.Context) {
+	var req struct {
+		ExerciseType string `json:"exercise_type" binding:"required"`
+	}
+
+	if err := c.ShouldBindJSON(&req); err != nil {
+		log.Printf("❌ Ошибка парсинга запроса: %v", err)
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error":   "Invalid request format",
+			"details": err.Error(),
+		})
+		return
+	}
+
+	log.Printf("🔄 Получен запрос на сброс упражнения: %s", req.ExerciseType)
+
+	// Отправляем команду сброса в Python процессор
+	resetRequest := map[string]interface{}{
+		"exercise_type":         req.ExerciseType,
+		"reset_for_new_attempt": true,
+	}
+
+	resp, err := h.pythonClient.ProcessFrame(resetRequest)
+	if err != nil {
+		log.Printf("❌ Ошибка при сбросе упражнения в Python: %v", err)
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"error":   "Failed to reset exercise",
+			"details": err.Error(),
+		})
+		return
+	}
+
+	response := gin.H{
+		"status":           "success",
+		"message":          "Exercise reset successfully",
+		"current_exercise": resp.CurrentExercise,
+		"exercise_name":    resp.ExerciseName,
+	}
+
+	if resp.Structured != nil {
+		response["structured"] = gin.H{
+			"state":            resp.Structured.State,
+			"state_name":       resp.Structured.StateName,
+			"current_cycle":    resp.Structured.Cycle,
+			"total_cycles":     resp.Structured.TotalCycles,
+			"completed":        resp.Structured.Completed,
+			"countdown":        resp.Structured.Countdown,
+			"progress_percent": resp.Structured.Progress,
+			"message":          resp.Structured.Message,
+			"step":             resp.Structured.Step,
+			"step_name":        resp.Structured.StepName,
+		}
+	}
+
+	c.JSON(http.StatusOK, response)
+}
+
 func (h *ExerciseHandler) HandleWebSocket(w http.ResponseWriter, r *http.Request, exerciseId string) {
 	log.Printf("WebSocket connection request for exercise: %s", exerciseId)
+
+	log.Printf("=== WEBSOCKET HANDLER ===")
+	log.Printf("Exercise ID: %s", exerciseId)
+	log.Printf("URL: %s", r.URL.String())
+	log.Printf("Token from query: %s", r.URL.Query().Get("token"))
+
+	// Проверяем, прошел ли пользователь через middleware
+	userID := r.Context().Value("user_id")
+	log.Printf("User ID from context: %v", userID)
 
 	conn, err := upgrader.Upgrade(w, r, nil)
 	if err != nil {
@@ -47,10 +171,19 @@ func (h *ExerciseHandler) HandleWebSocket(w http.ResponseWriter, r *http.Request
 		return
 	}
 
-	conn.SetReadDeadline(time.Now().Add(60 * time.Second))
-	conn.SetWriteDeadline(time.Now().Add(60 * time.Second))
+	err = conn.SetReadDeadline(time.Now().Add(60 * time.Second))
+	if err != nil {
+		return
+	}
+	err = conn.SetWriteDeadline(time.Now().Add(60 * time.Second))
+	if err != nil {
+		return
+	}
 	conn.SetPongHandler(func(string) error {
-		conn.SetReadDeadline(time.Now().Add(60 * time.Second))
+		err := conn.SetReadDeadline(time.Now().Add(60 * time.Second))
+		if err != nil {
+			return err
+		}
 		return nil
 	})
 
@@ -72,7 +205,10 @@ func (h *ExerciseHandler) readPump(client *websocket.Client) {
 	defer func() {
 		log.Printf("readPump exiting for client: %s", client.ExerciseID)
 		client.Hub.Unregister <- client
-		client.Conn.Close()
+		err := client.Conn.Close()
+		if err != nil {
+			return
+		}
 	}()
 
 	client.Conn.SetReadLimit(10 * 1024 * 1024)
@@ -87,6 +223,37 @@ func (h *ExerciseHandler) readPump(client *websocket.Client) {
 		}
 
 		log.Printf("Received message from client %s, size: %d bytes", client.ExerciseID, len(message))
+
+		// Парсим сообщение клиента
+		var clientMsg map[string]interface{}
+		if err := json.Unmarshal(message, &clientMsg); err != nil {
+			log.Printf("Error parsing client message: %v", err)
+			continue
+		}
+
+		// Проверяем, есть ли запрос на сброс
+		if reset, ok := clientMsg["reset_for_new_attempt"]; ok && reset == true {
+			log.Printf("🔄 Получен запрос на сброс упражнения через WebSocket")
+
+			// Отправляем команду сброса в Python
+			resetRequest := map[string]interface{}{
+				"exercise_type":         client.ExerciseID,
+				"reset_for_new_attempt": true,
+			}
+
+			feedback, err := h.processFrameWithReset(resetRequest)
+			if err != nil {
+				log.Printf("Error processing reset: %v", err)
+			} else {
+				feedbackJSON, _ := json.Marshal(feedback)
+				select {
+				case client.Send <- feedbackJSON:
+					log.Printf("Reset confirmation sent to client")
+				default:
+				}
+			}
+			continue
+		}
 
 		feedback, err := h.processFrame(string(message))
 		if err != nil {
@@ -116,30 +283,88 @@ func (h *ExerciseHandler) readPump(client *websocket.Client) {
 	}
 }
 
+// Новый метод для обработки сброса
+func (h *ExerciseHandler) processFrameWithReset(request map[string]interface{}) (*models.FrameFeedback, error) {
+	log.Printf("🔄 Отправка команды сброса в Python")
+
+	resp, err := h.pythonClient.ProcessFrame(request)
+	if err != nil {
+		log.Printf("❌ Ошибка Python при сбросе: %v", err)
+		return nil, err
+	}
+
+	// Конвертируем StructuredData для модели
+	var structured *models.StructuredData
+	if resp.Structured != nil {
+		structured = &models.StructuredData{
+			State:       resp.Structured.State,
+			StateName:   resp.Structured.StateName,
+			Countdown:   resp.Structured.Countdown,
+			Progress:    resp.Structured.Progress,
+			Cycle:       resp.Structured.Cycle,
+			TotalCycles: resp.Structured.TotalCycles,
+			Status:      resp.Structured.Status,
+			Completed:   resp.Structured.Completed,
+			Message:     resp.Structured.Message,
+			Step:        resp.Structured.Step,
+			StepName:    resp.Structured.StepName,
+		}
+	}
+
+	feedback := &models.FrameFeedback{
+		FistDetected:    resp.FistDetected,
+		HandDetected:    resp.HandDetected,
+		RaisedFingers:   resp.RaisedFingers,
+		FingerStates:    resp.FingerStates,
+		Message:         resp.Message,
+		ProcessedFrame:  resp.ProcessedFrame,
+		CurrentExercise: resp.CurrentExercise,
+		ExerciseName:    resp.ExerciseName,
+		Structured:      structured,
+		Timestamp:       time.Now().Unix(),
+	}
+
+	log.Printf("📥 Ответ от Python на сброс: status=%s, message='%s'", resp.Status, resp.Message)
+
+	return feedback, nil
+}
+
 func (h *ExerciseHandler) writePump(client *websocket.Client) {
 	ticker := time.NewTicker(30 * time.Second)
 	defer func() {
 		log.Printf("writePump exiting for client: %s", client.ExerciseID)
 		ticker.Stop()
-		client.Conn.Close()
+		err := client.Conn.Close()
+		if err != nil {
+			return
+		}
 	}()
 
 	for {
 		select {
 		case message, ok := <-client.Send:
 			if !ok {
-				client.Conn.WriteMessage(gorilla.CloseMessage, []byte{})
+				err := client.Conn.WriteMessage(gorilla.CloseMessage, []byte{})
+				if err != nil {
+					return
+				}
 				return
 			}
 
-			client.Conn.SetWriteDeadline(time.Now().Add(30 * time.Second))
+			err := client.Conn.SetWriteDeadline(time.Now().Add(30 * time.Second))
+			if err != nil {
+				return
+			}
 			if err := client.Conn.WriteMessage(gorilla.TextMessage, message); err != nil {
 				log.Printf("writePump error for %s: %v", client.ExerciseID, err)
 				return
 			}
 
 		case <-ticker.C:
-			client.Conn.SetWriteDeadline(time.Now().Add(30 * time.Second))
+			err := client.Conn.SetWriteDeadline(time.Now().Add(30 * time.Second))
+			if err != nil {
+				return
+			}
 			if err := client.Conn.WriteMessage(gorilla.PingMessage, nil); err != nil {
 				log.Printf("Ping error for %s: %v", client.ExerciseID, err)
 				return
@@ -177,24 +402,27 @@ func (h *ExerciseHandler) processFrame(messageStr string) (*models.FrameFeedback
 		return nil, err
 	}
 
-	// Конвертируем StructuredData если есть
+	// Конвертируем StructuredData для модели
 	var structured *models.StructuredData
 	if resp.Structured != nil {
 		structured = &models.StructuredData{
-			Step:        resp.Structured.Step,
-			StepName:    resp.Structured.StepName,
+			State:       resp.Structured.State,
+			StateName:   resp.Structured.StateName,
 			Countdown:   resp.Structured.Countdown,
 			Progress:    resp.Structured.Progress,
 			Cycle:       resp.Structured.Cycle,
 			TotalCycles: resp.Structured.TotalCycles,
 			Status:      resp.Structured.Status,
+			Completed:   resp.Structured.Completed,
+			Message:     resp.Structured.Message,
+			Step:        resp.Structured.Step,
+			StepName:    resp.Structured.StepName,
 		}
-		log.Printf("📊 Структурированные данные: шаг=%d, счетчик=%v, прогресс=%.1f%%, цикл=%d/%d",
-			resp.Structured.Step,
-			resp.Structured.Countdown,
-			resp.Structured.Progress,
+		log.Printf("📊 Структурированные данные: состояние=%v, цикл=%d/%d, завершено=%v",
+			resp.Structured.State,
 			resp.Structured.Cycle,
-			resp.Structured.TotalCycles)
+			resp.Structured.TotalCycles,
+			resp.Structured.Completed)
 	}
 
 	feedback := &models.FrameFeedback{

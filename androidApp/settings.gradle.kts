@@ -19,5 +19,6 @@ dependencyResolutionManagement {
     }
 }
 
-rootProject.name = "lfk"
+rootProject.name = "LFK"
 include(":app")
+ 

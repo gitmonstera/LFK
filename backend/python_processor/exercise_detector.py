@@ -39,6 +39,7 @@ class ExerciseManager:
         self.exercises = {}
         self.current_exercise = None
         self.current_exercise_id = "fist"
+        self.connection_count = 0
 
         # Загружаем все доступные упражнения
         self.load_exercises()
@@ -59,17 +60,8 @@ class ExerciseManager:
     def set_exercise(self, exercise_id):
         """Устанавливает текущее упражнение"""
         if exercise_id in self.exercises:
-            # Сохраняем старое упражнение для сравнения
-            old_exercise = self.current_exercise_id
             self.current_exercise = self.exercises[exercise_id]
             self.current_exercise_id = exercise_id
-
-            # Сбрасываем ТОЛЬКО если это действительно смена упражнения
-            if old_exercise != exercise_id:
-                if hasattr(self.current_exercise, 'reset'):
-                    self.current_exercise.reset()
-                    print(f"🔄 Упражнение сброшено при смене с {old_exercise} на {exercise_id}")
-
             print(f"🔄 Текущее упражнение: {self.current_exercise.name}")
             return True
         else:
@@ -77,11 +69,26 @@ class ExerciseManager:
             return False
 
     def reset_current_exercise(self):
-        """Сбрасывает текущее упражнение (только по запросу)"""
+        """Сбрасывает текущее упражнение в начальное состояние"""
         if self.current_exercise and hasattr(self.current_exercise, 'reset'):
             self.current_exercise.reset()
-            print(f"🔄 Упражнение сброшено по запросу")
+            print(f"🔄 Текущее упражнение сброшено (полный сброс)")
             return True
+        return False
+
+    def reset_exercise_for_new_attempt(self):
+        """Сбрасывает текущее упражнение для нового подхода"""
+        if self.current_exercise:
+            # Проверяем, есть ли специальный метод для нового подхода
+            if hasattr(self.current_exercise, 'reset_for_new_attempt'):
+                self.current_exercise.reset_for_new_attempt()
+                print(f"🔄 Упражнение сброшено для нового подхода")
+                return True
+            # Если нет, используем обычный reset
+            elif hasattr(self.current_exercise, 'reset'):
+                self.current_exercise.reset()
+                print(f"🔄 Упражнение сброшено (через reset)")
+                return True
         return False
 
     def get_exercise_list(self):
@@ -202,8 +209,6 @@ class ExerciseManager:
                 structured = self.current_exercise.get_structured_data()
                 if structured:
                     response["structured"] = structured
-                    # Убираем лишний вывод, чтобы не засорять логи
-                    # print(f"📊 Добавлены структурированные данные")
 
             return response
         except Exception as e:
@@ -241,6 +246,32 @@ def list_exercises():
         "exercises": exercise_manager.get_exercise_list()
     })
 
+@app.route('/exercise_state', methods=['GET'])
+def get_exercise_state():
+    """Возвращает текущее состояние упражнения"""
+    try:
+        exercise_type = request.args.get('type', 'fist-palm')
+
+        # Убеждаемся, что выбрано правильное упражнение
+        if exercise_type != exercise_manager.current_exercise_id:
+            exercise_manager.set_exercise(exercise_type)
+
+        # Получаем структурированные данные
+        structured = None
+        if hasattr(exercise_manager.current_exercise, 'get_structured_data'):
+            structured = exercise_manager.current_exercise.get_structured_data()
+
+        return jsonify({
+            "status": "success",
+            "current_exercise": exercise_manager.current_exercise_id,
+            "exercise_name": exercise_manager.current_exercise.name,
+            "structured": structured,
+            "auto_reset": getattr(exercise_manager.current_exercise, 'auto_reset_on_next_start', False)
+        })
+    except Exception as e:
+        print(f"❌ Ошибка получения состояния: {e}")
+        return jsonify({"error": str(e), "status": "error"}), 500
+
 @app.route('/reset_exercise', methods=['POST'])
 def reset_exercise():
     """Сбрасывает текущее упражнение (только по запросу)"""
@@ -249,6 +280,23 @@ def reset_exercise():
             return jsonify({
                 "status": "success",
                 "message": "Exercise reset successfully"
+            })
+        else:
+            return jsonify({
+                "status": "error",
+                "message": "Exercise does not support reset"
+            }), 400
+    except Exception as e:
+        return jsonify({"error": str(e), "status": "error"}), 400
+
+@app.route('/reset_for_new_attempt', methods=['POST'])
+def reset_for_new_attempt():
+    """Сбрасывает текущее упражнение для нового подхода"""
+    try:
+        if exercise_manager.reset_exercise_for_new_attempt():
+            return jsonify({
+                "status": "success",
+                "message": "Exercise reset for new attempt"
             })
         else:
             return jsonify({
@@ -286,6 +334,68 @@ def process_frame():
         if not data:
             return jsonify({"error": "No data provided"}), 400
 
+        # Проверяем, есть ли запрос только на получение состояния
+        if data.get('get_state_only'):
+            exercise_type = data.get('exercise_type', 'fist-palm')
+            print(f"📊 ЗАПРОС СОСТОЯНИЯ УПРАЖНЕНИЯ: {exercise_type}")
+
+            # Устанавливаем упражнение если нужно
+            if exercise_type != exercise_manager.current_exercise_id:
+                exercise_manager.set_exercise(exercise_type)
+
+            # Получаем структурированные данные
+            structured = None
+            if hasattr(exercise_manager.current_exercise, 'get_structured_data'):
+                structured = exercise_manager.current_exercise.get_structured_data()
+
+            # Возвращаем состояние без обработки кадра
+            return jsonify({
+                "status": "success",
+                "current_exercise": exercise_manager.current_exercise_id,
+                "exercise_name": exercise_manager.current_exercise.name if exercise_manager.current_exercise else "unknown",
+                "hand_detected": False,
+                "raised_fingers": 0,
+                "finger_states": [False]*5,
+                "structured": structured,
+                "message": "State check"
+            })
+
+        # Проверяем, есть ли запрос на сброс для нового подхода
+        if data.get('reset_for_new_attempt'):
+            exercise_type = data.get('exercise_type', 'fist-palm')
+            print(f"🔄 ПОЛУЧЕН ЗАПРОС НА СБРОС УПРАЖНЕНИЯ: {exercise_type}")
+
+            # Устанавливаем упражнение если нужно
+            if exercise_type != exercise_manager.current_exercise_id:
+                exercise_manager.set_exercise(exercise_type)
+
+            # Сбрасываем упражнение
+            success = exercise_manager.reset_exercise_for_new_attempt()
+
+            if success:
+                # Получаем обновленные структурированные данные
+                structured = None
+                if hasattr(exercise_manager.current_exercise, 'get_structured_data'):
+                    structured = exercise_manager.current_exercise.get_structured_data()
+
+                return jsonify({
+                    "status": "success",
+                    "message": "Exercise reset successfully",
+                    "hand_detected": False,
+                    "raised_fingers": 0,
+                    "finger_states": [False]*5,
+                    "current_exercise": exercise_manager.current_exercise_id,
+                    "exercise_name": exercise_manager.current_exercise.name if exercise_manager.current_exercise else "unknown",
+                    "fist_detected": False,
+                    "structured": structured
+                })
+            else:
+                return jsonify({
+                    "status": "error",
+                    "message": "Failed to reset exercise",
+                    "error": "Exercise does not support reset"
+                }), 400
+
         # Проверяем, есть ли смена упражнения
         if 'exercise_type' in data:
             exercise_manager.set_exercise(data['exercise_type'])
@@ -295,6 +405,13 @@ def process_frame():
             return jsonify({"error": "No frame provided"}), 400
 
         result = exercise_manager.process_frame(frame)
+
+        # Если упражнение завершено, помечаем его для сброса при следующем запуске
+        if result and result.get('structured') and result['structured'].get('completed'):
+            print(f"🎯 Упражнение завершено, помечаем для сброса при следующем запуске")
+            if hasattr(exercise_manager.current_exercise, 'mark_for_reset'):
+                exercise_manager.current_exercise.mark_for_reset()
+
         return jsonify(result)
     except Exception as e:
         print(f"❌ Ошибка в /process: {e}")
@@ -313,11 +430,19 @@ def process_frame():
 @socketio.on('connect')
 def handle_connect():
     print('🔌 Клиент подключен')
-    # НЕ сбрасываем упражнение при подключении!
+    # Проверяем, нужно ли автоматически сбросить упражнение
+    if hasattr(exercise_manager.current_exercise, 'auto_reset_on_next_start') and exercise_manager.current_exercise.auto_reset_on_next_start:
+        print('🔄 Автоматический сброс упражнения при новом подключении')
+        exercise_manager.reset_exercise_for_new_attempt()
+    else:
+        # Сбрасываем упражнение при новом подключении
+        exercise_manager.reset_current_exercise()
+        print('🔄 Упражнение сброшено для новой сессии')
 
 @socketio.on('disconnect')
 def handle_disconnect():
     print('🔌 Клиент отключен')
+    # При отключении ничего не делаем, состояние сохраняется
 
 @socketio.on('frame')
 def handle_frame(data):
@@ -327,14 +452,14 @@ def handle_frame(data):
             if 'exercise_type' in data:
                 exercise_manager.set_exercise(data['exercise_type'])
 
-            # Проверяем сброс упражнения (только если явно запрошено)
-            if 'reset' in data and data['reset']:
-                exercise_manager.reset_current_exercise()
-
             frame = data.get('frame')
             if frame:
                 result = exercise_manager.process_frame(frame)
                 emit('feedback', result)
+
+                # Если упражнение только что завершилось, оно уже помечено для автосброса
+                if result and result.get('structured') and result['structured'].get('completed'):
+                    print(f"🎯 Упражнение завершено и помечено для автосброса при следующем подключении")
             else:
                 emit('feedback', {
                     "fist_detected": False,
