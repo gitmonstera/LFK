@@ -13,34 +13,27 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import com.example.lfk.ui.theme.LFKClientTheme
 import com.example.lfk.viewmodel.AuthViewModel
+import com.example.lfk.viewmodel.ExerciseListViewModel
 import com.example.lfk.viewmodel.ExerciseViewModel
 import com.example.lfk.views.*
 
-/**
- * Главная активность приложения.
- * Управляет навигацией между экранами и инициализацией ViewModel.
- */
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContent {
             LFKClientTheme {
-                // Surface - контейнер для всего контента
                 Surface(
                     modifier = Modifier.fillMaxSize(),
                     color = MaterialTheme.colorScheme.background
                 ) {
-                    // Навигация
                     val navController = rememberNavController()
-
-                    // ViewModel'и
                     val authViewModel: AuthViewModel = viewModel()
                     val exerciseViewModel: ExerciseViewModel = viewModel()
+                    val exerciseListViewModel: ExerciseListViewModel = viewModel()
 
-                    // Настройка навигационных маршрутов
                     NavHost(
                         navController = navController,
-                        startDestination = "main_menu"  // Стартовый экран
+                        startDestination = "main_menu"
                     ) {
                         composable("main_menu") {
                             MainMenuScreen(
@@ -69,15 +62,17 @@ class MainActivity : ComponentActivity() {
                         composable("exercise_selection") {
                             ExerciseSelectionScreen(
                                 navController = navController,
-                                exerciseViewModel = exerciseViewModel
+                                authViewModel = authViewModel,
+                                exerciseListViewModel = exerciseListViewModel
                             )
                         }
-                        composable("exercise/{exerciseType}") { backStackEntry ->
-                            val exerciseType = backStackEntry.arguments?.getString("exerciseType") ?: "fist"
+                        composable("exercise/{exerciseId}") { backStackEntry ->
+                            val exerciseId = backStackEntry.arguments?.getString("exerciseId") ?: ""
                             ExerciseScreen(
                                 navController = navController,
                                 exerciseViewModel = exerciseViewModel,
-                                exerciseType = exerciseType,
+                                exerciseId = exerciseId,
+                                exerciseListViewModel = exerciseListViewModel,
                                 authViewModel = authViewModel
                             )
                         }

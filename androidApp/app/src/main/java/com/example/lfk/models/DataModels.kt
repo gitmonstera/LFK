@@ -107,28 +107,3 @@ data class StructuredData(
     val completed: Boolean?,     // Завершено ли упражнение
     val auto_reset: Boolean?     // Автосброс после завершения
 ) : Parcelable
-
-/**
- * Упражнение для отображения в списке
- */
-data class Exercise(
-    val id: String,
-    val name: String,
-    val type: String,
-    val description: String
-)
-
-/**
- * Данные об упражнениях
- */
-object ExerciseData {
-    val exercises = listOf(
-        Exercise("1", "Кулак (все пальцы сжаты)", "fist", "Сожмите все пальцы в кулак"),
-        Exercise("2", "Кулак с указательным пальцем", "fist-index", "Сожмите кулак, оставив указательный палец поднятым"),
-        Exercise("3", "Кулак-ладонь (кровообращение)", "fist-palm", "Чередуйте сжатие кулака и раскрытие ладони")
-    )
-
-    fun getExerciseByType(type: String): Exercise? {
-        return exercises.find { it.type == type }
-    }
-}
