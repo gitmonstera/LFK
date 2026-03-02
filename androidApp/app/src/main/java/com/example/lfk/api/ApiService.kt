@@ -1,7 +1,7 @@
 package com.example.lfk.api
 
-import com.example.lfk.api.UserDeserializer
 import com.example.lfk.models.*
+import com.example.lfk.api.UserDeserializer
 import com.google.gson.GsonBuilder
 import okhttp3.OkHttpClient
 import okhttp3.logging.HttpLoggingInterceptor
@@ -40,6 +40,12 @@ interface ApiService {
         @Header("Authorization") token: String,
         @Body request: Map<String, String>
     ): Map<String, Any>
+
+    // Новый метод для получения списка упражнений
+    @GET("api/get_exercise_list")
+    suspend fun getExerciseList(
+        @Header("Authorization") token: String
+    ): ExerciseListResponse
 }
 
 object ApiClient {
