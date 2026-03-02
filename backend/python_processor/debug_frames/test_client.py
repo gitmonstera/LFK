@@ -9,11 +9,11 @@ import numpy as np
 import requests
 import websocket
 
-# URL для разных упражнений
+
 EXERCISE_URLS = {
-    '1': "ws://localhost:8080/ws/exercise/fist",        # Кулак
-    '2': "ws://localhost:8080/ws/exercise/fist-index",  # Кулак с указательным
-    '3': "ws://localhost:8080/ws/exercise/fist-palm",   # Кулак-ладонь
+    '1': "ws://localhost:8080/ws/exercise/fist",        
+    '2': "ws://localhost:8080/ws/exercise/fist-index",  
+    '3': "ws://localhost:8080/ws/exercise/fist-palm",   
 }
 
 EXERCISE_NAMES = {
@@ -28,11 +28,11 @@ EXERCISE_TYPES = {
     '3': 'fist-palm',
 }
 
-# Глобальные переменные
+
 auth_token = None
 user_info = None
 
-# Цвета для красивого вывода
+
 class Colors:
     HEADER = '\033[95m'
     BLUE = '\033[94m'
@@ -218,7 +218,7 @@ def get_profile():
         print(f"{Colors.RED}❌ Ошибка: {e}{Colors.END}")
         input("\nНажмите Enter для продолжения...")
 
-# ============= ФУНКЦИИ ДЛЯ РАБОТЫ С ТРЕНИРОВКАМИ =============
+
 
 def start_workout():
     """Начать новую тренировку"""
@@ -292,7 +292,7 @@ def end_workout(session_id):
     except Exception as e:
         return False
 
-# ============= ФУНКЦИИ ДЛЯ СТАТИСТИКИ =============
+
 
 def get_overall_stats():
     """Получение общей статистики"""
@@ -473,7 +473,7 @@ def get_monthly_stats():
             if not stats:
                 print("Нет данных за месяц")
             else:
-                # Группировка по неделям
+                
                 weeks = {}
                 for day in stats:
                     date = day.get('stat_date', '')
@@ -605,7 +605,7 @@ def get_workout_history():
                     print(f"   Упражнений: {exercises}, Повторений: {reps}")
                     print(f"   Время: {minutes} мин, Точность: {accuracy:.1f}%")
 
-                    # Показываем детали упражнений
+                    
                     for ex in workout.get('exercises', []):
                         ex_name = ex.get('name', 'Неизвестно')
                         ex_reps = ex.get('repetitions', 0)
@@ -620,7 +620,7 @@ def get_workout_history():
         print(f"{Colors.RED}❌ Ошибка: {e}{Colors.END}")
         input("\nНажмите Enter для продолжения...")
 
-# ============= ФУНКЦИИ ОТОБРАЖЕНИЯ УПРАЖНЕНИЙ =============
+
 
 def display_fist_palm_progress(data):
     """Отображает прогресс для упражнения Кулак-ладонь"""
@@ -628,7 +628,7 @@ def display_fist_palm_progress(data):
 
     structured = data.get('structured', {})
 
-    # Получаем данные с безопасной обработкой
+    
     state = structured.get('state', 'unknown')
     if state is None:
         state = 'unknown'
@@ -650,12 +650,12 @@ def display_fist_palm_progress(data):
 
     print_header(f"🎯 {EXERCISE_NAMES['3']}")
 
-    # Статус руки
+    
     hand = data.get('hand_detected', False)
     hand_symbol = "🖐️" if hand else "❌"
     print(f"{hand_symbol} Рука: {'в кадре' if hand else 'не обнаружена'}")
 
-    # Состояние пальцев
+    
     finger_states = data.get('finger_states', [])
     if finger_states:
         finger_names = ["Большой", "Указат", "Средний", "Безым", "Мизинец"]
@@ -669,7 +669,7 @@ def display_fist_palm_progress(data):
 
     print("-" * 60)
 
-    # Отображение шагов
+    
     steps = [
         {"name": "Сожмите кулак", "state": "waiting_fist"},
         {"name": "Держите кулак", "state": "holding_fist"},
@@ -679,14 +679,14 @@ def display_fist_palm_progress(data):
 
     print("📋 ПРОГРЕСС УПРАЖНЕНИЯ:")
 
-    # Определяем текущий шаг
+    
     current_step_index = -1
     for i, step in enumerate(steps):
         if step["state"] == state:
             current_step_index = i
             break
 
-    # Отображаем все шаги
+    
     for i, step in enumerate(steps):
         if i < current_step_index:
             print(f"  {Colors.GREEN}✅ {step['name']}{Colors.END}")
@@ -700,14 +700,14 @@ def display_fist_palm_progress(data):
 
     print(f"\n🔄 Цикл: {current_cycle}/{total_cycles}")
 
-    # Прогресс-бар
+    
     if "holding" in str(state) and countdown is not None:
         bar_length = 30
         filled = int(progress / 100 * bar_length)
         bar = "█" * filled + "░" * (bar_length - filled)
         print(f"\n{Colors.CYAN}⏱️  Осталось: {countdown}с [{bar}] {progress:.0f}%{Colors.END}")
 
-    # Сообщение
+    
     if "🎉" in message:
         print(f"\n{Colors.GREEN}{message}{Colors.END}")
     elif "❌" in message:
@@ -754,11 +754,11 @@ def reset_exercise_on_server():
     """Отправляет запрос на сброс упражнения на сервере"""
     global auth_token
     try:
-        # Пробуем через HTTP
+        
         response = requests.post(
-            "http://localhost:8080/api/exercise/reset",  # Изменено с /api/reset_for_new_attempt
+            "http://localhost:8080/api/exercise/reset",  
             headers={"Authorization": f"Bearer {auth_token}"},
-            json={"exercise_type": "fist-palm"},  # Укажите нужный тип
+            json={"exercise_type": "fist-palm"},  
             timeout=2
         )
         if response.status_code == 200:
@@ -811,8 +811,6 @@ def connect_and_run(exercise_key):
         if not session_id:
             return False
 
-        # ... остальной код ...
-
         # Кодируем токен для URL
         encoded_token = urllib.parse.quote(auth_token)
         ws_url = f"{url}?token={encoded_token}"
@@ -844,6 +842,7 @@ def connect_and_run(exercise_key):
             exercise_completed = False
             stats_saved_for_cycle = set()
             workout_ended = False
+            total_cycles = 5  # должно приходить с сервера
 
             while True:
                 good, img = camera.read()
@@ -883,28 +882,36 @@ def connect_and_run(exercise_key):
                                 # Получаем текущий цикл из структурированных данных
                                 structured = data.get('structured', {})
                                 current_cycle = structured.get('current_cycle', 0)
+                                total_cycles = structured.get('total_cycles', 5)
+                                completed = structured.get('completed', False)
 
-                                # Если цикл увеличился, значит завершен предыдущий
+                                # Если цикл увеличился
                                 if current_cycle > last_cycle and last_cycle >= 0:
-                                    sets_completed += 1
-                                    print(f"\n{Colors.GREEN}✅ ЦИКЛ {sets_completed} ЗАВЕРШЕН!{Colors.END}")
+                                    # Это завершенный цикл (предыдущий)
+                                    completed_cycle = last_cycle
+                                    if completed_cycle not in stats_saved_for_cycle and completed_cycle > 0:
+                                        stats_saved_for_cycle.add(completed_cycle)
+                                        sets_completed = len(stats_saved_for_cycle)  # sets_completed - это количество сохраненных циклов
+                                        print(f"\n{Colors.GREEN}✅ ЦИКЛ {completed_cycle}/{total_cycles} ЗАВЕРШЕН!{Colors.END}")
 
-                                    # Сохраняем статистику для этого цикла
-                                    if sets_completed not in stats_saved_for_cycle:
-                                        stats_saved_for_cycle.add(sets_completed)
+                                        # Сохраняем статистику для этого цикла
                                         if add_exercise_set(session_id, exercise_type, 5, 60, 95.0):
                                             print(f"{Colors.GREEN}✅ Статистика сохранена!{Colors.END}")
                                         else:
                                             print(f"{Colors.RED}❌ Ошибка сохранения статистики{Colors.END}")
 
-                                last_cycle = current_cycle
+                                # Если упражнение завершено
+                                if completed and not exercise_completed:
+                                    # Добавляем последний цикл в статистику, если он еще не сохранен
+                                    if total_cycles not in stats_saved_for_cycle:
+                                        stats_saved_for_cycle.add(total_cycles)
+                                        sets_completed = len(stats_saved_for_cycle)  # обновляем количество
+                                        print(f"\n{Colors.GREEN}✅ ЦИКЛ {total_cycles}/{total_cycles} ЗАВЕРШЕН!{Colors.END}")
 
-                                # Проверяем завершение упражнения по сообщению
-                                message = data.get('message', '')
-                                structured_completed = structured.get('completed', False)
+                                        # Сохраняем статистику для последнего цикла
+                                        if add_exercise_set(session_id, exercise_type, 5, 60, 95.0):
+                                            print(f"{Colors.GREEN}✅ Статистика сохранена!{Colors.END}")
 
-                                # КОГДА УПРАЖНЕНИЕ ПОЛНОСТЬЮ ВЫПОЛНЕНО
-                                if (message.startswith('🎉') or structured_completed) and not exercise_completed:
                                     exercise_completed = True
                                     print(f"\n{Colors.YELLOW}🎯 УПРАЖНЕНИЕ ВЫПОЛНЕНО!{Colors.END}")
 
@@ -913,9 +920,9 @@ def connect_and_run(exercise_key):
                                         print(f"{Colors.GREEN}✅ Тренировка завершена!{Colors.END}")
 
                                     workout_ended = True
-
-                                    # НЕМЕДЛЕННО ВЫХОДИМ ИЗ ЦИКЛА
                                     break
+
+                                last_cycle = current_cycle
                             else:
                                 display_regular_exercise(data, exercise_name)
 
@@ -929,7 +936,7 @@ def connect_and_run(exercise_key):
                 # Добавляем информацию на кадр
                 cv2.putText(img, f"User: {user_info.get('username', '')}", (10, 30),
                             cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 255, 0), 2)
-                cv2.putText(img, f"Sets: {sets_completed}", (10, 55),
+                cv2.putText(img, f"Sets: {sets_completed}/{total_cycles}", (10, 55),
                             cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 255, 0), 2)
                 cv2.putText(img, "ESC - exit", (10, 80),
                             cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 1)
@@ -957,7 +964,7 @@ def connect_and_run(exercise_key):
                 pass
 
             if sets_completed > 0:
-                print(f"\n{Colors.GREEN}📊 ИТОГО ВЫПОЛНЕНО: {sets_completed} подходов{Colors.END}")
+                print(f"\n{Colors.GREEN}📊 ИТОГО ВЫПОЛНЕНО: {sets_completed}/{total_cycles} подходов{Colors.END}")
 
             print("\n🔌 Соединение закрыто")
 
@@ -1011,7 +1018,7 @@ def check_exercise_state(exercise_type):
         )
         if response.status_code == 200:
             data = response.json()
-            # Для отладки
+            
             if data.get('structured'):
                 print(f"📊 Получено состояние: {data['structured']}")
             return data
@@ -1035,15 +1042,15 @@ def wait_for_exercise_reset(exercise_type, max_attempts=10):
 
             print(f"🔄 Проверка состояния: цикл={current_cycle}, состояние={state_name}, завершено={completed}")
 
-            # Если упражнение готово к началу
+            
             if not completed and current_cycle == 0 and state_name == 'waiting_fist':
                 print(f"{Colors.GREEN}✅ Упражнение готово к началу{Colors.END}")
                 return True
 
-            # Если упражнение завершено, но помечено для автосброса - ждем еще немного
+            
             if completed and auto_reset:
                 print(f"{Colors.YELLOW}⏳ Упражнение завершено, но будет сброшено при подключении...{Colors.END}")
-                # Даем время на автосброс
+                
                 time.sleep(2)
                 continue
 
