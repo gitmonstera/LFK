@@ -7,6 +7,7 @@ from flask_socketio import SocketIO, emit
 import logging
 import time
 import os
+from collections import deque
 
 # Импортируем упражнения
 from exercises import EXERCISE_CLASSES
@@ -31,6 +32,12 @@ hands = mp_hands.Hands(
     min_detection_confidence=0.5,
     min_tracking_confidence=0.5
 )
+
+# Глобальный счетчик кадров для генерации последовательных timestamp
+frame_counter = 0
+# Храним последние несколько кадров для сглаживания
+frame_buffer = deque(maxlen=2)
+last_processed_time = time.time()
 
 class ExerciseManager:
     """Менеджер упражнений"""
@@ -79,12 +86,10 @@ class ExerciseManager:
     def reset_exercise_for_new_attempt(self):
         """Сбрасывает текущее упражнение для нового подхода"""
         if self.current_exercise:
-            # Проверяем, есть ли специальный метод для нового подхода
             if hasattr(self.current_exercise, 'reset_for_new_attempt'):
                 self.current_exercise.reset_for_new_attempt()
                 print(f"🔄 Упражнение сброшено для нового подхода")
                 return True
-            # Если нет, используем обычный reset
             elif hasattr(self.current_exercise, 'reset'):
                 self.current_exercise.reset()
                 print(f"🔄 Упражнение сброшено (через reset)")
@@ -103,7 +108,6 @@ class ExerciseManager:
             # Декодируем base64
             if isinstance(frame_data, str):
                 try:
-                    # Исправляем padding
                     missing_padding = len(frame_data) % 4
                     if missing_padding:
                         frame_data += '=' * (4 - missing_padding)
@@ -125,7 +129,15 @@ class ExerciseManager:
 
             # Конвертируем в RGB для MediaPipe
             frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+
+            # Устанавливаем флаг для предотвращения записи
+            frame_rgb.flags.writeable = False
+
+            # Обрабатываем кадр
             results = hands.process(frame_rgb)
+
+            # Возвращаем флаг
+            frame_rgb.flags.writeable = True
 
             # Создаем копию для визуализации
             display_frame = frame.copy()
@@ -216,6 +228,7 @@ class ExerciseManager:
             return self.error_response("Error creating response")
 
     def error_response(self, message):
+        """Формирует ответ с ошибкой"""
         return {
             "fist_detected": False,
             "hand_detected": False,
@@ -252,11 +265,9 @@ def get_exercise_state():
     try:
         exercise_type = request.args.get('type', 'fist-palm')
 
-        # Убеждаемся, что выбрано правильное упражнение
         if exercise_type != exercise_manager.current_exercise_id:
             exercise_manager.set_exercise(exercise_type)
 
-        # Получаем структурированные данные
         structured = None
         if hasattr(exercise_manager.current_exercise, 'get_structured_data'):
             structured = exercise_manager.current_exercise.get_structured_data()
@@ -339,16 +350,13 @@ def process_frame():
             exercise_type = data.get('exercise_type', 'fist-palm')
             print(f"📊 ЗАПРОС СОСТОЯНИЯ УПРАЖНЕНИЯ: {exercise_type}")
 
-            # Устанавливаем упражнение если нужно
             if exercise_type != exercise_manager.current_exercise_id:
                 exercise_manager.set_exercise(exercise_type)
 
-            # Получаем структурированные данные
             structured = None
             if hasattr(exercise_manager.current_exercise, 'get_structured_data'):
                 structured = exercise_manager.current_exercise.get_structured_data()
 
-            # Возвращаем состояние без обработки кадра
             return jsonify({
                 "status": "success",
                 "current_exercise": exercise_manager.current_exercise_id,
@@ -365,15 +373,12 @@ def process_frame():
             exercise_type = data.get('exercise_type', 'fist-palm')
             print(f"🔄 ПОЛУЧЕН ЗАПРОС НА СБРОС УПРАЖНЕНИЯ: {exercise_type}")
 
-            # Устанавливаем упражнение если нужно
             if exercise_type != exercise_manager.current_exercise_id:
                 exercise_manager.set_exercise(exercise_type)
 
-            # Сбрасываем упражнение
             success = exercise_manager.reset_exercise_for_new_attempt()
 
             if success:
-                # Получаем обновленные структурированные данные
                 structured = None
                 if hasattr(exercise_manager.current_exercise, 'get_structured_data'):
                     structured = exercise_manager.current_exercise.get_structured_data()
@@ -429,26 +434,28 @@ def process_frame():
 
 @socketio.on('connect')
 def handle_connect():
+    global frame_counter
     print('🔌 Клиент подключен')
-    # Проверяем, нужно ли автоматически сбросить упражнение
+    # Сбрасываем счетчик кадров при новом подключении
+    frame_counter = 0
+    # Очищаем буфер кадров
+    frame_buffer.clear()
+
     if hasattr(exercise_manager.current_exercise, 'auto_reset_on_next_start') and exercise_manager.current_exercise.auto_reset_on_next_start:
         print('🔄 Автоматический сброс упражнения при новом подключении')
         exercise_manager.reset_exercise_for_new_attempt()
     else:
-        # Сбрасываем упражнение при новом подключении
         exercise_manager.reset_current_exercise()
         print('🔄 Упражнение сброшено для новой сессии')
 
 @socketio.on('disconnect')
 def handle_disconnect():
     print('🔌 Клиент отключен')
-    # При отключении ничего не делаем, состояние сохраняется
 
 @socketio.on('frame')
 def handle_frame(data):
     try:
         if isinstance(data, dict):
-            # Проверяем смену упражнения
             if 'exercise_type' in data:
                 exercise_manager.set_exercise(data['exercise_type'])
 
@@ -457,7 +464,6 @@ def handle_frame(data):
                 result = exercise_manager.process_frame(frame)
                 emit('feedback', result)
 
-                # Если упражнение только что завершилось, оно уже помечено для автосброса
                 if result and result.get('structured') and result['structured'].get('completed'):
                     print(f"🎯 Упражнение завершено и помечено для автосброса при следующем подключении")
             else:

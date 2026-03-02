@@ -68,7 +68,12 @@ func (c *Client) ProcessFrame(requestData map[string]interface{}) (*FrameRespons
 	if err != nil {
 		return nil, fmt.Errorf("error sending request to Python: %v", err)
 	}
-	defer resp.Body.Close()
+	defer func(Body io.ReadCloser) {
+		err := Body.Close()
+		if err != nil {
+
+		}
+	}(resp.Body)
 
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
@@ -76,7 +81,7 @@ func (c *Client) ProcessFrame(requestData map[string]interface{}) (*FrameRespons
 	}
 
 	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("Python server returned status %d: %s", resp.StatusCode, string(body))
+		return nil, fmt.Errorf("python server returned status %d: %s", resp.StatusCode, string(body))
 	}
 
 	var result FrameResponse
