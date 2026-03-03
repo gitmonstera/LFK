@@ -12,6 +12,8 @@ import com.example.lfk.api.ApiClient
 import com.example.lfk.api.WebSocketManager
 import com.example.lfk.models.*
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.flow.MutableSharedFlow
+import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.launchIn
 import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.launch
@@ -59,21 +61,38 @@ class ExerciseViewModel : ViewModel() {
     private val _exerciseState = MutableLiveData<Map<String, Any>?>()
     val exerciseState: LiveData<Map<String, Any>?> = _exerciseState
 
+    // Flow для UI
+    private val _webSocketMessages = MutableSharedFlow<WebSocketResponse>()
+    val webSocketMessages = _webSocketMessages.asSharedFlow()
+
     private var lastCycle = -1
     private val statsSavedForCycle = mutableSetOf<Int>()
     private var receiveJob: Job? = null
 
+    // Больше никакой подписки в init!
     init {
-        receiveJob = webSocketManager.messages
-            .onEach { response ->
-                handleWebSocketResponse(response)
-            }
-            .launchIn(viewModelScope)
+        // Пусто!
     }
 
     fun connectToExercise(exerciseType: String, url: String) {
         Log.d("ExerciseViewModel", "Connecting to WebSocket: $url")
+
+        // Отменяем старую подписку
+        receiveJob?.cancel()
+
+        // Подключаемся
         webSocketManager.connect(url)
+
+        // СОЗДАЕМ НОВУЮ ПОДПИСКУ для этого подключения
+        receiveJob = webSocketManager.messages
+            .onEach { response ->
+                handleWebSocketResponse(response)
+                // Также отправляем в отдельный Flow для UI
+                _webSocketMessages.emit(response)
+            }
+            .launchIn(viewModelScope)
+
+        Log.d("ExerciseViewModel", "New subscription created")
     }
 
     fun startWorkout(token: String, onSuccess: (String) -> Unit) {
@@ -165,7 +184,7 @@ class ExerciseViewModel : ViewModel() {
     }
 
     private fun handleWebSocketResponse(response: WebSocketResponse) {
-        Log.d("ExerciseViewModel", "Handling response")
+        Log.d("ExerciseViewModel", "Handling response: hand=${response.hand_detected}")
 
         _handDetected.value = response.hand_detected
         _raisedFingers.value = response.raised_fingers ?: 0
@@ -175,21 +194,9 @@ class ExerciseViewModel : ViewModel() {
         // Обрабатываем изображение
         response.processed_frame?.let { base64Frame ->
             try {
-                Log.d("ExerciseViewModel", "Image base64 length: ${base64Frame.length}")
-
-                // Декодируем
                 val decodedBytes = Base64.decode(base64Frame, Base64.DEFAULT)
-                Log.d("ExerciseViewModel", "Decoded bytes: ${decodedBytes.size}")
-
-                // Создаем bitmap
                 val bitmap = BitmapFactory.decodeByteArray(decodedBytes, 0, decodedBytes.size)
-
-                if (bitmap != null) {
-                    Log.d("ExerciseViewModel", "Bitmap OK: ${bitmap.width}x${bitmap.height}")
-                    _processedImage.value = bitmap
-                } else {
-                    Log.e("ExerciseViewModel", "Bitmap is null")
-                }
+                _processedImage.value = bitmap
             } catch (e: Exception) {
                 Log.e("ExerciseViewModel", "Error decoding", e)
             }
@@ -215,8 +222,10 @@ class ExerciseViewModel : ViewModel() {
     }
 
     fun disconnect() {
+        Log.d("ExerciseViewModel", "Disconnecting...")
         webSocketManager.disconnect()
         receiveJob?.cancel()
+        receiveJob = null
         resetState()
     }
 

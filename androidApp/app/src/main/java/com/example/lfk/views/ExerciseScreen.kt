@@ -248,6 +248,21 @@ fun ExerciseScreen(
         addLog("⏹️ Цикл отправки остановлен")
     }
 
+    // Добавьте этот LaunchedEffect после ваших существующих эффектов
+    LaunchedEffect(webSocketConnected) {
+        if (!webSocketConnected) return@LaunchedEffect
+
+        addLog("📡 Подписка на сообщения...")
+
+        // Собираем сообщения из отдельного Flow
+        exerciseViewModel.webSocketMessages.collect { response ->
+            // Эти данные уже должны обновляться через LiveData,
+            // но можно добавить дополнительное логирование
+            if (sendCount % 5 == 0) {
+                addLog("📥 Получены данные: рука=${response.hand_detected}")
+            }
+        }
+    }
 // Добавьте отладку в WebSocketManager.sendFrame
 
     // UI
