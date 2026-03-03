@@ -1,0 +1,210 @@
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:aapt="http://schemas.android.com/aapt"
+    android:width="200dp"
+    android:height="200dp"
+    android:viewportWidth="200"
+    android:viewportHeight="200">
+
+    <!-- Эффект глубины: радиальное свечение -->
+    <path
+        android:pathData="M100,100 m-80,0 a80,80 0 1,1 160,0 a80,80 0 1,1 -160,0"
+        android:fillAlpha="0.1">
+        <aapt:attr name="android:fillColor">
+            <gradient
+                android:startX="20"
+                android:startY="20"
+                android:endX="180"
+                android:endY="180"
+                android:type="radial">
+                <item android:offset="0" android:color="#FF764BA2" />
+                <item android:offset="0.7" android:color="#FF667EEA" />
+                <item android:offset="1" android:color="#00000000" />
+            </gradient>
+        </aapt:attr>
+    </path>
+
+
+    <!-- Левая спираль ДНК (символ науки и структуры тела) -->
+    <path
+        android:pathData="M70,40 Q50,70 70,100 Q90,130 70,160"
+        android:strokeWidth="4"
+        android:strokeColor="#FF667EEA"
+        android:strokeLineCap="round"
+        android:strokeAlpha="0.8"
+        android:fillColor="#00000000" />
+
+    <path
+        android:pathData="M70,55 Q55,80 70,105 Q85,130 70,155"
+        android:strokeWidth="2"
+        android:strokeColor="#FF667EEA"
+        android:strokeLineCap="round"
+        android:strokeAlpha="0.4"
+        android:fillColor="#00000000"
+        android:strokeDashArray="3,3" />
+
+    <!-- Правая спираль ДНК -->
+    <path
+        android:pathData="M130,40 Q150,70 130,100 Q110,130 130,160"
+        android:strokeWidth="4"
+        android:strokeColor="#FF764BA2"
+        android:strokeLineCap="round"
+        android:strokeAlpha="0.8"
+        android:fillColor="#00000000" />
+
+    <path
+        android:pathData="M130,55 Q145,80 130,105 Q115,130 130,155"
+        android:strokeWidth="2"
+        android:strokeColor="#FF764BA2"
+        android:strokeLineCap="round"
+        android:strokeAlpha="0.4"
+        android:fillColor="#00000000"
+        android:strokeDashArray="3,3" />
+
+    <!-- Голова (кристалл здоровья) -->
+    <path
+        android:pathData="M100,35 L115,45 L100,55 L85,45 Z">
+        <aapt:attr name="android:fillColor">
+            <gradient
+                android:startX="85"
+                android:startY="35"
+                android:endX="115"
+                android:endY="55"
+                android:type="linear">
+                <item android:offset="0" android:color="#FF667EEA" />
+                <item android:offset="1" android:color="#FF764BA2" />
+            </gradient>
+        </aapt:attr>
+    </path>
+
+    <!-- Блик на голове -->
+    <path
+        android:pathData="M95,42 L105,42 L100,48 Z"
+        android:fillColor="#80FFFFFF"
+        android:fillAlpha="0.4" />
+
+    <!-- Позвоночник/Ось (символ стержня) -->
+    <path
+        android:pathData="M100,55 L100,145"
+        android:strokeWidth="5"
+        android:strokeColor="#FFFFFF"
+        android:strokeAlpha="0.2"
+        android:strokeLineCap="round" />
+
+    <!-- Сердце (медицинский символ) с идеальной формой -->
+    <path
+        android:pathData="M100,85
+                 C70,60 40,85 40,115
+                 C40,140 70,160 100,175
+                 C130,160 160,140 160,115
+                 C160,85 130,60 100,85 Z">
+        <aapt:attr name="android:fillColor">
+            <gradient
+                android:startX="40"
+                android:startY="60"
+                android:endX="160"
+                android:endY="175"
+                android:type="linear">
+                <item android:offset="0" android:color="#FF667EEA" />
+                <item android:offset="0.5" android:color="#FF764BA2" />
+                <item android:offset="1" android:color="#FF9F7AEA" />
+            </gradient>
+        </aapt:attr>
+    </path>
+
+
+    <!-- Линия пульса (ЭКГ) внутри сердца -->
+    <path
+        android:pathData="M70,120 L85,120 L90,105 L95,135 L100,115 L105,125 L110,110 L115,120 L130,120"
+        android:strokeWidth="2.5"
+        android:strokeColor="#FFD700"
+        android:strokeAlpha="0.9"
+        android:strokeLineCap="round"
+        android:fillColor="#00000000" />
+
+
+    <!-- Левая рука (тянется вверх - стремление) -->
+    <path
+        android:pathData="M100,70 C85,70 70,65 60,50"
+        android:strokeWidth="5"
+        android:strokeColor="#FF667EEA"
+        android:strokeLineCap="round" />
+
+    <!-- Левая кисть с пальцами -->
+    <path
+        android:pathData="M55,45 L48,40 L52,35"
+        android:strokeWidth="3"
+        android:strokeColor="#FF667EEA"
+        android:strokeLineCap="round" />
+
+    <!-- Правая рука (опирается на бедро - стабильность) -->
+    <path
+        android:pathData="M100,85 C115,90 130,95 138,110"
+        android:strokeWidth="5"
+        android:strokeColor="#FF764BA2"
+        android:strokeLineCap="round" />
+
+    <!-- Правая кисть -->
+    <path
+        android:pathData="M140,115 L148,112 L152,120"
+        android:strokeWidth="3"
+        android:strokeColor="#FF764BA2"
+        android:strokeLineCap="round" />
+
+    <!-- Левая нога (шаг вперед - прогресс) -->
+    <path
+        android:pathData="M100,145 C95,160 85,175 75,185"
+        android:strokeWidth="5"
+        android:strokeColor="#FF667EEA"
+        android:strokeLineCap="round" />
+
+    <!-- Правая нога (опора) -->
+    <path
+        android:pathData="M100,145 C110,160 120,170 130,180"
+        android:strokeWidth="5"
+        android:strokeColor="#FF764BA2"
+        android:strokeLineCap="round" />
+
+
+    <!-- Суставы (точки опоры) -->
+    <path
+        android:pathData="M100,70 m-3,0 a3,3 0 1,1 6,0 a3,3 0 1,1 -6,0"
+        android:fillColor="#FFD700"
+        android:fillAlpha="0.6" />
+
+    <path
+        android:pathData="M100,145 m-3,0 a3,3 0 1,1 6,0 a3,3 0 1,1 -6,0"
+        android:fillColor="#FFD700"
+        android:fillAlpha="0.6" />
+
+
+    <!-- Атомная орбита (символ науки и движения) -->
+    <path
+        android:pathData="M40,40 Q70,20 100,40 Q130,60 160,40"
+        android:strokeWidth="1.5"
+        android:strokeColor="#FFFFFF"
+        android:strokeAlpha="0.15"
+        android:strokeLineCap="round"
+        android:fillColor="#00000000" />
+
+    <path
+        android:pathData="M40,160 Q70,180 100,160 Q130,140 160,160"
+        android:strokeWidth="1.5"
+        android:strokeColor="#FFFFFF"
+        android:strokeAlpha="0.15"
+        android:strokeLineCap="round"
+        android:fillColor="#00000000" />
+
+    <!-- Тонкие линии, обозначающие мышцы/волокна -->
+    <path
+        android:pathData="M90,120 L95,130"
+        android:strokeWidth="1"
+        android:strokeColor="#80FFFFFF"
+        android:strokeAlpha="0.3" />
+    <path
+        android:pathData="M110,120 L105,130"
+        android:strokeWidth="1"
+        android:strokeColor="#80FFFFFF"
+        android:strokeAlpha="0.3" />
+
+
+</vector>
