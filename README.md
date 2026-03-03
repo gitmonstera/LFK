@@ -1,6 +1,10 @@
 # Лечебная Физическая Культура (ЛФК) 🏥
 
 <div align="center">
+  <img src="images/lfk_logo.svg" alt="LFK Logo" width="200"/>
+</div>
+
+<div align="center">
   
   ![Version](https://img.shields.io/badge/version-1.0.0-blue?style=flat-square)
   ![License](https://img.shields.io/badge/license-MIT-green?style=flat-square)
