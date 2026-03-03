@@ -1,6 +1,7 @@
 package com.example.lfk.views
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
@@ -18,6 +19,7 @@ import androidx.compose.runtime.livedata.observeAsState
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
@@ -27,6 +29,7 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavController
 import com.example.lfk.models.*
 import com.example.lfk.viewmodel.StatsViewModel
+import com.example.lfk.ui.theme.*
 import java.text.SimpleDateFormat
 import java.util.*
 
@@ -78,14 +81,10 @@ fun StatsScreen(
         topBar = {
             TopAppBar(
                 title = {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Text(
-                            text = "📊 Статистика",
-                            fontSize = 22.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = MaterialTheme.colorScheme.primary
-                        )
-                    }
+                    Text(
+                        text = "Статистика",
+                        fontWeight = FontWeight.Bold
+                    )
                 },
                 navigationIcon = {
                     IconButton(onClick = { navController.popBackStack() }) {
@@ -104,7 +103,9 @@ fun StatsScreen(
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = MaterialTheme.colorScheme.primaryContainer
+                    containerColor = MaterialTheme.colorScheme.primary,
+                    titleContentColor = Color.White,
+                    navigationIconContentColor = Color.White
                 )
             )
         }
@@ -112,7 +113,14 @@ fun StatsScreen(
         Box(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(paddingValues)
+                .background(
+                    Brush.verticalGradient(
+                        colors = listOf(
+                            MaterialTheme.primaryGradientStart,
+                            MaterialTheme.primaryGradientEnd
+                        )
+                    )
+                )
         ) {
             if (isLoading) {
                 Box(
@@ -121,66 +129,82 @@ fun StatsScreen(
                         .background(Color.White.copy(alpha = 0.8f))
                 ) {
                     CircularProgressIndicator(
-                        modifier = Modifier.align(Alignment.Center)
+                        modifier = Modifier.align(Alignment.Center),
+                        color = MaterialTheme.colorScheme.primary
                     )
                 }
-            }
-
-            Column(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(16.dp)
-            ) {
-                // Табы
-                ScrollableTabRow(
-                    selectedTabIndex = currentTab,
-                    containerColor = MaterialTheme.colorScheme.surface,
-                    edgePadding = 0.dp,
-                    divider = {}
+            } else {
+                Column(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(paddingValues)
+                        .padding(16.dp)
                 ) {
-                    tabs.forEachIndexed { index, title ->
-                        Tab(
-                            selected = currentTab == index,
-                            onClick = { statsViewModel.setCurrentTab(index) },
-                            text = {
-                                Text(
-                                    text = title,
-                                    fontSize = 12.sp,
-                                    maxLines = 1
-                                )
-                            },
-                            icon = {
-                                Icon(
-                                    imageVector = tabIcons[index],
-                                    contentDescription = null,
-                                    modifier = Modifier.size(16.dp)
-                                )
-                            },
-                            selectedContentColor = MaterialTheme.colorScheme.primary,
-                            unselectedContentColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
+                    // Карточка с табами
+                    Card(
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = MaterialTheme.shapes.large,
+                        colors = CardDefaults.cardColors(
+                            containerColor = MaterialTheme.colorScheme.surface
                         )
-                    }
-                }
-
-                Spacer(modifier = Modifier.height(16.dp))
-
-                // Контент в зависимости от выбранного таба
-                when (currentTab) {
-                    0 -> OverallStatsContent(overallStats)
-                    1 -> DailyStatsContent(
-                        dailyStats = dailyStats,
-                        selectedDate = selectedDate,
-                        onDateChange = { newDate ->
-                            statsViewModel.setSelectedDate(newDate)
-                            if (authToken != null) {
-                                statsViewModel.loadDailyStats(authToken, newDate)
+                    ) {
+                        Column(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(12.dp)
+                        ) {
+                            ScrollableTabRow(
+                                selectedTabIndex = currentTab,
+                                containerColor = Color.Transparent,
+                                edgePadding = 0.dp,
+                                divider = {}
+                            ) {
+                                tabs.forEachIndexed { index, title ->
+                                    Tab(
+                                        selected = currentTab == index,
+                                        onClick = { statsViewModel.setCurrentTab(index) },
+                                        text = {
+                                            Text(
+                                                text = title,
+                                                fontSize = 12.sp,
+                                                maxLines = 1
+                                            )
+                                        },
+                                        icon = {
+                                            Icon(
+                                                imageVector = tabIcons[index],
+                                                contentDescription = null,
+                                                modifier = Modifier.size(16.dp)
+                                            )
+                                        },
+                                        selectedContentColor = MaterialTheme.colorScheme.primary,
+                                        unselectedContentColor = MaterialTheme.textSecondary
+                                    )
+                                }
                             }
                         }
-                    )
-                    2 -> WeeklyStatsContent(weeklyStats)
-                    3 -> MonthlyStatsContent(monthlyStats)
-                    4 -> ExerciseStatsContent(exerciseStats)
-                    5 -> WorkoutHistoryContent(workoutHistory)
+                    }
+
+                    Spacer(modifier = Modifier.height(16.dp))
+
+                    // Контент в зависимости от выбранного таба
+                    when (currentTab) {
+                        0 -> OverallStatsContent(overallStats)
+                        1 -> DailyStatsContent(
+                            dailyStats = dailyStats,
+                            selectedDate = selectedDate,
+                            onDateChange = { newDate ->
+                                statsViewModel.setSelectedDate(newDate)
+                                if (authToken != null) {
+                                    statsViewModel.loadDailyStats(authToken, newDate)
+                                }
+                            }
+                        )
+                        2 -> WeeklyStatsContent(weeklyStats)
+                        3 -> MonthlyStatsContent(monthlyStats)
+                        4 -> ExerciseStatsContent(exerciseStats)
+                        5 -> WorkoutHistoryContent(workoutHistory)
+                    }
                 }
             }
 
@@ -215,6 +239,7 @@ fun StatsCard(
 ) {
     Card(
         modifier = modifier,
+        shape = MaterialTheme.shapes.medium,
         colors = CardDefaults.cardColors(
             containerColor = color.copy(alpha = 0.1f)
         ),
@@ -247,7 +272,7 @@ fun StatsCard(
                 Text(
                     text = title,
                     fontSize = 14.sp,
-                    color = Color.Gray
+                    color = MaterialTheme.textSecondary
                 )
                 Text(
                     text = value,
@@ -278,7 +303,7 @@ fun OverallStatsContent(stats: OverallStats?) {
                 icon = Icons.Default.FitnessCenter,
                 title = "Всего тренировок",
                 value = stats.total_sessions.toString(),
-                color = Color(0xFF6200EE)
+                color = MaterialTheme.colorScheme.primary
             )
         }
 
@@ -287,7 +312,7 @@ fun OverallStatsContent(stats: OverallStats?) {
                 icon = Icons.Default.Repeat,
                 title = "Всего упражнений",
                 value = stats.total_exercises.toString(),
-                color = Color(0xFF03DAC5)
+                color = MaterialTheme.success
             )
         }
 
@@ -296,7 +321,7 @@ fun OverallStatsContent(stats: OverallStats?) {
                 icon = Icons.Default.RepeatOne,
                 title = "Всего повторений",
                 value = stats.total_repetitions.toString(),
-                color = Color(0xFFFF9800)
+                color = MaterialTheme.warning
             )
         }
 
@@ -305,7 +330,7 @@ fun OverallStatsContent(stats: OverallStats?) {
                 icon = Icons.Default.Timer,
                 title = "Общее время",
                 value = "${totalHours}ч ${totalMinutes}мин",
-                color = Color(0xFF4CAF50)
+                color = MaterialTheme.success
             )
         }
 
@@ -314,7 +339,7 @@ fun OverallStatsContent(stats: OverallStats?) {
                 icon = Icons.Default.Category,
                 title = "Уникальных упражнений",
                 value = stats.unique_exercises.toString(),
-                color = Color(0xFFE91E63)
+                color = MaterialTheme.info
             )
         }
 
@@ -325,8 +350,9 @@ fun OverallStatsContent(stats: OverallStats?) {
             ) {
                 Card(
                     modifier = Modifier.weight(1f),
+                    shape = MaterialTheme.shapes.medium,
                     colors = CardDefaults.cardColors(
-                        containerColor = Color(0xFF4A90E2).copy(alpha = 0.1f)
+                        containerColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.1f)
                     )
                 ) {
                     Column(
@@ -336,29 +362,30 @@ fun OverallStatsContent(stats: OverallStats?) {
                         horizontalAlignment = Alignment.CenterHorizontally
                     ) {
                         Icon(
-                            imageVector = Icons.Default.Whatshot, // Заменил Whatshot на WhatsApp
+                            imageVector = Icons.Default.LocalFireDepartment,
                             contentDescription = null,
-                            tint = Color(0xFF4A90E2),
+                            tint = MaterialTheme.colorScheme.primary,
                             modifier = Modifier.size(24.dp)
                         )
                         Text(
                             text = "Текущая серия",
                             fontSize = 12.sp,
-                            color = Color.Gray
+                            color = MaterialTheme.textSecondary
                         )
                         Text(
                             text = "${stats.current_streak} дней",
                             fontSize = 16.sp,
                             fontWeight = FontWeight.Bold,
-                            color = Color(0xFF4A90E2)
+                            color = MaterialTheme.colorScheme.primary
                         )
                     }
                 }
 
                 Card(
                     modifier = Modifier.weight(1f),
+                    shape = MaterialTheme.shapes.medium,
                     colors = CardDefaults.cardColors(
-                        containerColor = Color(0xFFF5A623).copy(alpha = 0.1f)
+                        containerColor = MaterialTheme.warning.copy(alpha = 0.1f)
                     )
                 ) {
                     Column(
@@ -368,21 +395,21 @@ fun OverallStatsContent(stats: OverallStats?) {
                         horizontalAlignment = Alignment.CenterHorizontally
                     ) {
                         Icon(
-                            imageVector = Icons.Default.Star, // Заменил EmojiEvents на Star
+                            imageVector = Icons.Default.Star,
                             contentDescription = null,
-                            tint = Color(0xFFF5A623),
+                            tint = MaterialTheme.warning,
                             modifier = Modifier.size(24.dp)
                         )
                         Text(
                             text = "Макс. серия",
                             fontSize = 12.sp,
-                            color = Color.Gray
+                            color = MaterialTheme.textSecondary
                         )
                         Text(
                             text = "${stats.longest_streak} дней",
                             fontSize = 16.sp,
                             fontWeight = FontWeight.Bold,
-                            color = Color(0xFFF5A623)
+                            color = MaterialTheme.warning
                         )
                     }
                 }
@@ -393,8 +420,9 @@ fun OverallStatsContent(stats: OverallStats?) {
             item {
                 Card(
                     modifier = Modifier.fillMaxWidth(),
+                    shape = MaterialTheme.shapes.medium,
                     colors = CardDefaults.cardColors(
-                        containerColor = Color(0xFF9C27B0).copy(alpha = 0.1f)
+                        containerColor = MaterialTheme.info.copy(alpha = 0.1f)
                     )
                 ) {
                     Row(
@@ -406,7 +434,7 @@ fun OverallStatsContent(stats: OverallStats?) {
                         Icon(
                             imageVector = Icons.Default.Schedule,
                             contentDescription = null,
-                            tint = Color(0xFF9C27B0),
+                            tint = MaterialTheme.info,
                             modifier = Modifier.size(24.dp)
                         )
                         Spacer(modifier = Modifier.width(12.dp))
@@ -414,13 +442,13 @@ fun OverallStatsContent(stats: OverallStats?) {
                             Text(
                                 text = "Последняя тренировка",
                                 fontSize = 12.sp,
-                                color = Color.Gray
+                                color = MaterialTheme.textSecondary
                             )
                             Text(
-                                text = formatDate(lastWorkout),
+                                text = formatStatsDate(lastWorkout),
                                 fontSize = 14.sp,
                                 fontWeight = FontWeight.Bold,
-                                color = Color(0xFF9C27B0)
+                                color = MaterialTheme.info
                             )
                         }
                     }
@@ -440,8 +468,9 @@ fun DailyStatsContent(
         // Выбор даты
         Card(
             modifier = Modifier.fillMaxWidth(),
+            shape = MaterialTheme.shapes.large,
             colors = CardDefaults.cardColors(
-                containerColor = MaterialTheme.colorScheme.primaryContainer
+                containerColor = MaterialTheme.colorScheme.surface
             )
         ) {
             Row(
@@ -461,20 +490,33 @@ fun DailyStatsContent(
                         onDateChange(newDate)
                     }
                 ) {
-                    Icon(Icons.Default.ChevronLeft, contentDescription = "Предыдущий день")
+                    Icon(
+                        Icons.Default.ChevronLeft,
+                        contentDescription = "Предыдущий день",
+                        tint = MaterialTheme.colorScheme.primary
+                    )
                 }
 
-                Row(verticalAlignment = Alignment.CenterVertically) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier.clickable {
+                        // Сброс на сегодня
+                        val today = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()).format(Date())
+                        onDateChange(today)
+                    }
+                ) {
                     Icon(
                         Icons.Default.CalendarToday,
                         contentDescription = null,
-                        modifier = Modifier.size(16.dp)
+                        modifier = Modifier.size(16.dp),
+                        tint = MaterialTheme.colorScheme.primary
                     )
                     Spacer(modifier = Modifier.width(4.dp))
                     Text(
                         text = selectedDate,
                         fontSize = 14.sp,
-                        fontWeight = FontWeight.Bold
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.textPrimary
                     )
                 }
 
@@ -492,7 +534,11 @@ fun DailyStatsContent(
                         }
                     }
                 ) {
-                    Icon(Icons.Default.ChevronRight, contentDescription = "Следующий день")
+                    Icon(
+                        Icons.Default.ChevronRight,
+                        contentDescription = "Следующий день",
+                        tint = MaterialTheme.colorScheme.primary
+                    )
                 }
             }
         }
@@ -510,7 +556,7 @@ fun DailyStatsContent(
                         icon = Icons.Default.FitnessCenter,
                         title = "Тренировок",
                         value = dailyStats.total_sessions.toString(),
-                        color = Color(0xFF6200EE)
+                        color = MaterialTheme.colorScheme.primary
                     )
                 }
 
@@ -519,7 +565,7 @@ fun DailyStatsContent(
                         icon = Icons.Default.Repeat,
                         title = "Упражнений",
                         value = dailyStats.total_exercises.toString(),
-                        color = Color(0xFF03DAC5)
+                        color = MaterialTheme.success
                     )
                 }
 
@@ -530,7 +576,7 @@ fun DailyStatsContent(
                         icon = Icons.Default.Timer,
                         title = "Время",
                         value = "${minutes}мин ${seconds}сек",
-                        color = Color(0xFF4CAF50)
+                        color = MaterialTheme.success
                     )
                 }
 
@@ -539,18 +585,19 @@ fun DailyStatsContent(
                         icon = Icons.Default.LocalFireDepartment,
                         title = "Сожжено калорий",
                         value = String.format("%.1f ккал", dailyStats.calories_burned),
-                        color = Color(0xFFFF9800)
+                        color = MaterialTheme.warning
                     )
                 }
 
                 item {
                     Card(
                         modifier = Modifier.fillMaxWidth(),
+                        shape = MaterialTheme.shapes.medium,
                         colors = CardDefaults.cardColors(
                             containerColor = if (dailyStats.completed)
-                                Color(0xFF4CAF50).copy(alpha = 0.1f)
+                                MaterialTheme.success.copy(alpha = 0.1f)
                             else
-                                Color(0xFFF44336).copy(alpha = 0.1f)
+                                MaterialTheme.colorScheme.error.copy(alpha = 0.1f)
                         )
                     ) {
                         Row(
@@ -563,7 +610,7 @@ fun DailyStatsContent(
                             Icon(
                                 imageVector = if (dailyStats.completed) Icons.Default.CheckCircle else Icons.Default.Cancel,
                                 contentDescription = null,
-                                tint = if (dailyStats.completed) Color(0xFF4CAF50) else Color(0xFFF44336),
+                                tint = if (dailyStats.completed) MaterialTheme.success else MaterialTheme.colorScheme.error,
                                 modifier = Modifier.size(24.dp)
                             )
                             Spacer(modifier = Modifier.width(8.dp))
@@ -571,7 +618,7 @@ fun DailyStatsContent(
                                 text = if (dailyStats.completed) "День выполнен! ✅" else "День не выполнен ❌",
                                 fontSize = 16.sp,
                                 fontWeight = FontWeight.Bold,
-                                color = if (dailyStats.completed) Color(0xFF4CAF50) else Color(0xFFF44336)
+                                color = if (dailyStats.completed) MaterialTheme.success else MaterialTheme.colorScheme.error
                             )
                         }
                     }
@@ -605,8 +652,9 @@ fun WeeklyStatsContent(stats: List<DailyStatItem>) {
         // Итоги за неделю
         Card(
             modifier = Modifier.fillMaxWidth(),
+            shape = MaterialTheme.shapes.large,
             colors = CardDefaults.cardColors(
-                containerColor = MaterialTheme.colorScheme.primaryContainer
+                containerColor = MaterialTheme.colorScheme.surface
             )
         ) {
             Column(
@@ -627,47 +675,23 @@ fun WeeklyStatsContent(stats: List<DailyStatItem>) {
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceAround
                 ) {
-                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                        Text(
-                            text = totalSessions.toString(),
-                            fontSize = 20.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = Color(0xFF6200EE)
-                        )
-                        Text(
-                            text = "тренировок",
-                            fontSize = 12.sp,
-                            color = Color.Gray
-                        )
-                    }
+                    WeekStatColumn(
+                        value = totalSessions.toString(),
+                        label = "тренировок",
+                        color = MaterialTheme.colorScheme.primary
+                    )
 
-                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                        Text(
-                            text = totalExercises.toString(),
-                            fontSize = 20.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = Color(0xFF03DAC5)
-                        )
-                        Text(
-                            text = "упражнений",
-                            fontSize = 12.sp,
-                            color = Color.Gray
-                        )
-                    }
+                    WeekStatColumn(
+                        value = totalExercises.toString(),
+                        label = "упражнений",
+                        color = MaterialTheme.success
+                    )
 
-                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                        Text(
-                            text = "${totalHours}ч ${totalMinutes}мин",
-                            fontSize = 16.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = Color(0xFF4CAF50)
-                        )
-                        Text(
-                            text = "всего",
-                            fontSize = 12.sp,
-                            color = Color.Gray
-                        )
-                    }
+                    WeekStatColumn(
+                        value = "${totalHours}ч ${totalMinutes}мин",
+                        label = "всего",
+                        color = MaterialTheme.warning
+                    )
                 }
             }
         }
@@ -679,6 +703,7 @@ fun WeeklyStatsContent(stats: List<DailyStatItem>) {
             text = "ДНИ НЕДЕЛИ:",
             fontSize = 14.sp,
             fontWeight = FontWeight.Bold,
+            color = MaterialTheme.textPrimary,
             modifier = Modifier.padding(bottom = 8.dp)
         )
 
@@ -696,9 +721,10 @@ fun WeeklyStatsContent(stats: List<DailyStatItem>) {
 fun DayStatItem(day: DailyStatItem) {
     Card(
         modifier = Modifier.fillMaxWidth(),
+        shape = MaterialTheme.shapes.medium,
         colors = CardDefaults.cardColors(
             containerColor = if (day.completed)
-                Color(0xFF4CAF50).copy(alpha = 0.05f)
+                MaterialTheme.success.copy(alpha = 0.05f)
             else
                 MaterialTheme.colorScheme.surface
         )
@@ -715,8 +741,8 @@ fun DayStatItem(day: DailyStatItem) {
                     .size(32.dp)
                     .clip(CircleShape)
                     .background(
-                        if (day.completed) Color(0xFF4CAF50).copy(alpha = 0.2f)
-                        else Color(0xFFF44336).copy(alpha = 0.1f)
+                        if (day.completed) MaterialTheme.success.copy(alpha = 0.2f)
+                        else MaterialTheme.colorScheme.error.copy(alpha = 0.1f)
                     ),
                 contentAlignment = Alignment.Center
             ) {
@@ -733,14 +759,15 @@ fun DayStatItem(day: DailyStatItem) {
                 modifier = Modifier.weight(1f)
             ) {
                 Text(
-                    text = formatDate(day.stat_date),
+                    text = formatStatsDate(day.stat_date),
                     fontSize = 14.sp,
-                    fontWeight = FontWeight.Bold
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.textPrimary
                 )
                 Text(
                     text = "${day.total_sessions} тр, ${day.total_exercises} упр",
                     fontSize = 12.sp,
-                    color = Color.Gray
+                    color = MaterialTheme.textSecondary
                 )
             }
 
@@ -750,7 +777,7 @@ fun DayStatItem(day: DailyStatItem) {
                 text = "${minutes} мин",
                 fontSize = 14.sp,
                 fontWeight = FontWeight.Bold,
-                color = Color(0xFF4CAF50)
+                color = MaterialTheme.success
             )
         }
     }
@@ -769,8 +796,9 @@ fun MonthlyStatsContent(weeks: List<WeekStats>) {
         items(weeks) { week ->
             Card(
                 modifier = Modifier.fillMaxWidth(),
+                shape = MaterialTheme.shapes.large,
                 colors = CardDefaults.cardColors(
-                    containerColor = MaterialTheme.colorScheme.primaryContainer
+                    containerColor = MaterialTheme.colorScheme.surface
                 )
             ) {
                 Column(
@@ -794,13 +822,13 @@ fun MonthlyStatsContent(weeks: List<WeekStats>) {
                         WeekStatColumn(
                             value = week.sessions.toString(),
                             label = "тренировок",
-                            color = Color(0xFF6200EE)
+                            color = MaterialTheme.colorScheme.primary
                         )
 
                         WeekStatColumn(
                             value = week.exercises.toString(),
                             label = "упражнений",
-                            color = Color(0xFF03DAC5)
+                            color = MaterialTheme.success
                         )
 
                         val hours = week.duration / 3600
@@ -808,7 +836,7 @@ fun MonthlyStatsContent(weeks: List<WeekStats>) {
                         WeekStatColumn(
                             value = "${hours}ч ${minutes}мин",
                             label = "время",
-                            color = Color(0xFF4CAF50)
+                            color = MaterialTheme.warning
                         )
                     }
                 }
@@ -835,7 +863,7 @@ fun WeekStatColumn(
         Text(
             text = label,
             fontSize = 12.sp,
-            color = Color.Gray
+            color = MaterialTheme.textSecondary
         )
     }
 }
@@ -859,7 +887,11 @@ fun ExerciseStatsContent(stats: List<ExerciseStatItem>) {
 @Composable
 fun ExerciseStatCard(exercise: ExerciseStatItem) {
     Card(
-        modifier = Modifier.fillMaxWidth()
+        modifier = Modifier.fillMaxWidth(),
+        shape = MaterialTheme.shapes.large,
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.surface
+        )
     ) {
         Column(
             modifier = Modifier
@@ -877,7 +909,8 @@ fun ExerciseStatCard(exercise: ExerciseStatItem) {
                 Text(
                     text = exercise.exercise_name,
                     fontSize = 18.sp,
-                    fontWeight = FontWeight.Bold
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.textPrimary
                 )
             }
 
@@ -892,12 +925,12 @@ fun ExerciseStatCard(exercise: ExerciseStatItem) {
                         text = exercise.total_sessions.toString(),
                         fontSize = 16.sp,
                         fontWeight = FontWeight.Bold,
-                        color = Color(0xFF6200EE)
+                        color = MaterialTheme.colorScheme.primary
                     )
                     Text(
                         text = "сессий",
                         fontSize = 12.sp,
-                        color = Color.Gray
+                        color = MaterialTheme.textSecondary
                     )
                 }
 
@@ -906,12 +939,12 @@ fun ExerciseStatCard(exercise: ExerciseStatItem) {
                         text = exercise.total_repetitions.toString(),
                         fontSize = 16.sp,
                         fontWeight = FontWeight.Bold,
-                        color = Color(0xFF03DAC5)
+                        color = MaterialTheme.success
                     )
                     Text(
                         text = "повторений",
                         fontSize = 12.sp,
-                        color = Color.Gray
+                        color = MaterialTheme.textSecondary
                     )
                 }
 
@@ -921,17 +954,20 @@ fun ExerciseStatCard(exercise: ExerciseStatItem) {
                         text = "${minutes}мин",
                         fontSize = 16.sp,
                         fontWeight = FontWeight.Bold,
-                        color = Color(0xFF4CAF50)
+                        color = MaterialTheme.warning
                     )
                     Text(
                         text = "время",
                         fontSize = 12.sp,
-                        color = Color.Gray
+                        color = MaterialTheme.textSecondary
                     )
                 }
             }
 
-            Divider(modifier = Modifier.padding(vertical = 8.dp))
+            Divider(
+                color = MaterialTheme.colorScheme.primary.copy(alpha = 0.2f),
+                modifier = Modifier.padding(vertical = 8.dp)
+            )
 
             Row(
                 modifier = Modifier.fillMaxWidth(),
@@ -942,13 +978,13 @@ fun ExerciseStatCard(exercise: ExerciseStatItem) {
                         Text(
                             text = "Лучшая точность",
                             fontSize = 12.sp,
-                            color = Color.Gray
+                            color = MaterialTheme.textSecondary
                         )
                         Text(
                             text = String.format("%.1f%%", it),
                             fontSize = 14.sp,
                             fontWeight = FontWeight.Bold,
-                            color = Color(0xFFFF9800)
+                            color = MaterialTheme.warning
                         )
                     }
                 }
@@ -958,13 +994,13 @@ fun ExerciseStatCard(exercise: ExerciseStatItem) {
                         Text(
                             text = "Средняя точность",
                             fontSize = 12.sp,
-                            color = Color.Gray
+                            color = MaterialTheme.textSecondary
                         )
                         Text(
                             text = String.format("%.1f%%", it),
                             fontSize = 14.sp,
                             fontWeight = FontWeight.Bold,
-                            color = Color(0xFF4CAF50)
+                            color = MaterialTheme.success
                         )
                     }
                 }
@@ -979,13 +1015,13 @@ fun ExerciseStatCard(exercise: ExerciseStatItem) {
                         Icons.Default.Schedule,
                         contentDescription = null,
                         modifier = Modifier.size(16.dp),
-                        tint = Color.Gray
+                        tint = MaterialTheme.textSecondary
                     )
                     Spacer(modifier = Modifier.width(4.dp))
                     Text(
-                        text = "Последний раз: ${formatDate(it)}",
+                        text = "Последний раз: ${formatStatsDate(it)}",
                         fontSize = 12.sp,
-                        color = Color.Gray
+                        color = MaterialTheme.textSecondary
                     )
                 }
             }
@@ -1018,7 +1054,11 @@ fun WorkoutHistoryCard(
     workout: WorkoutHistoryItem
 ) {
     Card(
-        modifier = Modifier.fillMaxWidth()
+        modifier = Modifier.fillMaxWidth(),
+        shape = MaterialTheme.shapes.large,
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.surface
+        )
     ) {
         Column(
             modifier = Modifier
@@ -1047,22 +1087,24 @@ fun WorkoutHistoryCard(
                     }
                     Spacer(modifier = Modifier.width(8.dp))
                     Text(
-                        text = formatDate(workout.started_at),
+                        text = formatStatsDate(workout.started_at),
                         fontSize = 16.sp,
-                        fontWeight = FontWeight.Bold
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.textPrimary
                     )
                 }
 
                 Card(
+                    shape = MaterialTheme.shapes.small,
                     colors = CardDefaults.cardColors(
-                        containerColor = Color(0xFF4CAF50).copy(alpha = 0.1f)
+                        containerColor = MaterialTheme.success.copy(alpha = 0.1f)
                     )
                 ) {
                     Text(
                         text = String.format("%.1f%%", workout.avg_accuracy),
                         fontSize = 12.sp,
                         fontWeight = FontWeight.Bold,
-                        color = Color(0xFF4CAF50),
+                        color = MaterialTheme.success,
                         modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
                     )
                 }
@@ -1077,20 +1119,23 @@ fun WorkoutHistoryCard(
                 StatChip(
                     value = workout.total_exercises.toString(),
                     label = "упражнений",
-                    icon = Icons.Default.Repeat
+                    icon = Icons.Default.Repeat,
+                    color = MaterialTheme.colorScheme.primary
                 )
 
                 StatChip(
                     value = workout.total_reps.toString(),
                     label = "повторений",
-                    icon = Icons.Default.RepeatOne
+                    icon = Icons.Default.RepeatOne,
+                    color = MaterialTheme.success
                 )
 
                 val minutes = workout.total_duration / 60
                 StatChip(
                     value = "${minutes}мин",
                     label = "время",
-                    icon = Icons.Default.Timer
+                    icon = Icons.Default.Timer,
+                    color = MaterialTheme.warning
                 )
             }
 
@@ -1100,7 +1145,7 @@ fun WorkoutHistoryCard(
                     text = "Выполненные упражнения:",
                     fontSize = 12.sp,
                     fontWeight = FontWeight.Bold,
-                    color = Color.Gray
+                    color = MaterialTheme.textSecondary
                 )
 
                 workout.exercises.forEach { ex ->
@@ -1112,13 +1157,14 @@ fun WorkoutHistoryCard(
                     ) {
                         Text(
                             text = "• ${ex.name}",
-                            fontSize = 12.sp
+                            fontSize = 12.sp,
+                            color = MaterialTheme.textPrimary
                         )
                         Text(
                             text = "${ex.repetitions} раз",
                             fontSize = 12.sp,
                             fontWeight = FontWeight.Bold,
-                            color = Color(0xFF6200EE)
+                            color = MaterialTheme.colorScheme.primary
                         )
                     }
                 }
@@ -1131,7 +1177,8 @@ fun WorkoutHistoryCard(
 fun StatChip(
     value: String,
     label: String,
-    icon: ImageVector
+    icon: ImageVector,
+    color: Color
 ) {
     Row(
         verticalAlignment = Alignment.CenterVertically
@@ -1140,19 +1187,20 @@ fun StatChip(
             icon,
             contentDescription = null,
             modifier = Modifier.size(16.dp),
-            tint = Color.Gray
+            tint = color
         )
         Spacer(modifier = Modifier.width(4.dp))
         Column {
             Text(
                 text = value,
                 fontSize = 14.sp,
-                fontWeight = FontWeight.Bold
+                fontWeight = FontWeight.Bold,
+                color = MaterialTheme.textPrimary
             )
             Text(
                 text = label,
                 fontSize = 10.sp,
-                color = Color.Gray
+                color = MaterialTheme.textSecondary
             )
         }
     }
@@ -1160,13 +1208,17 @@ fun StatChip(
 
 @Composable
 fun EmptyStatsPlaceholder(message: String = "Нет данных для отображения") {
-    Box(
-        modifier = Modifier
-            .fillMaxSize()
-            .padding(32.dp),
-        contentAlignment = Alignment.Center
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = MaterialTheme.shapes.large,
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.surface
+        )
     ) {
         Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(32.dp),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
             Text(
@@ -1177,14 +1229,15 @@ fun EmptyStatsPlaceholder(message: String = "Нет данных для отоб
             Text(
                 text = message,
                 fontSize = 16.sp,
-                color = Color.Gray,
+                color = MaterialTheme.textSecondary,
                 textAlign = androidx.compose.ui.text.style.TextAlign.Center
             )
         }
     }
 }
 
-fun formatDate(dateString: String): String {
+// Переименовал функцию, чтобы избежать конфликта с ProfileScreen
+fun formatStatsDate(dateString: String): String {
     return try {
         val inputFormat = SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss'Z'", Locale.getDefault())
         inputFormat.timeZone = TimeZone.getTimeZone("UTC")

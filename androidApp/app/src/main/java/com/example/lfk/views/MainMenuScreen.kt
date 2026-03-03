@@ -21,9 +21,11 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.FocusDirection
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.res.vectorResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
@@ -70,7 +72,7 @@ fun MainMenuScreen(
                 elevation = CardDefaults.cardElevation(8.dp)
             ) {
                 Image(
-                    painter = painterResource(id = R.drawable.logo),
+                    imageVector = ImageVector.vectorResource(id = R.drawable.logo),
                     contentDescription = "Логотип",
                     contentScale = ContentScale.Crop,
                     modifier = Modifier.fillMaxSize()
