@@ -1,7 +1,7 @@
 # Лечебная Физическая Культура (ЛФК) 🏥
 
 <div align="center">
-  <img src="images/lfk_logo.svg" alt="LFK Logo" width="200"/>
+  <img src="images/center_logo.svg" alt="LFK Logo" width="200"/>
 </div>
 
 <div align="center">
