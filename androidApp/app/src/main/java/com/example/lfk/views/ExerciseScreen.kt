@@ -2,7 +2,6 @@ package com.example.lfk.views
 
 import android.Manifest
 import android.graphics.ImageFormat
-import android.graphics.Rect
 import android.graphics.YuvImage
 import android.util.Log
 import android.widget.FrameLayout
@@ -29,54 +28,30 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.core.content.ContextCompat
-import androidx.core.content.PermissionChecker
-import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.navigation.NavController
-import com.example.lfk.models.ExerciseData
+import com.example.lfk.models.ServerExercise
 import com.example.lfk.models.StructuredData
 import com.example.lfk.viewmodel.AuthViewModel
+import com.example.lfk.viewmodel.ExerciseListViewModel
 import com.example.lfk.viewmodel.ExerciseViewModel
 import kotlinx.coroutines.delay
 import java.io.ByteArrayOutputStream
 import java.util.concurrent.Executors
 
-/**
- * Экран выполнения упражнения
- */
 @Composable
 fun ExerciseScreen(
     navController: NavController,
     exerciseViewModel: ExerciseViewModel,
-    exerciseType: String,
+    exerciseId: String,
+    exerciseListViewModel: ExerciseListViewModel,
     authViewModel: AuthViewModel
 ) {
     val context = LocalContext.current
-    val lifecycleOwner = androidx.lifecycle.compose.LocalLifecycleOwner.current
+    val lifecycleOwner = LocalLifecycleOwner.current
 
-    // Camera
-    val cameraProviderFuture = remember { ProcessCameraProvider.getInstance(context) }
-    var imageCapture by remember { mutableStateOf<ImageCapture?>(null) }
-    remember { Executors.newSingleThreadExecutor() }
-
-    // Permission state
-    var hasCameraPermission by remember {
-        mutableStateOf(
-            PermissionChecker.checkSelfPermission(context, Manifest.permission.CAMERA) ==
-                    PermissionChecker.PERMISSION_GRANTED
-        )
-    }
-
-    // Request permission launcher
-    val permissionLauncher = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.RequestPermission(),
-        onResult = { isGranted ->
-            hasCameraPermission = isGranted
-        }
-    )
-
-    // ViewModel data
     val authToken by authViewModel.authToken.observeAsState()
     val userInfo by authViewModel.userInfo.observeAsState()
+    val exercise = exerciseListViewModel.getExerciseById(exerciseId)
 
     val processedImage by exerciseViewModel.processedImage.observeAsState()
     val handDetected by exerciseViewModel.handDetected.observeAsState(false)
@@ -88,13 +63,25 @@ fun ExerciseScreen(
     val totalCycles by exerciseViewModel.totalCycles.observeAsState(5)
     val exerciseCompleted by exerciseViewModel.exerciseCompleted.observeAsState(false)
 
-    // Exercise info
-    val exercise = ExerciseData.getExerciseByType(exerciseType)
-    val wsUrl = when (exerciseType) {
-        "fist" -> "ws://10.0.2.2:8080/ws/exercise/fist"
-        "fist-index" -> "ws://10.0.2.2:8080/ws/exercise/fist-index"
-        "fist-palm" -> "ws://10.0.2.2:8080/ws/exercise/fist-palm"
-        else -> "ws://10.0.2.2:8080/ws/exercise/fist"
+    // Camera setup
+    val cameraProviderFuture = remember { ProcessCameraProvider.getInstance(context) }
+    var imageCapture by remember { mutableStateOf<ImageCapture?>(null) }
+    val cameraExecutor = remember { Executors.newSingleThreadExecutor() }
+
+    // Permission handling
+    var hasCameraPermission by remember {
+        mutableStateOf(
+            ContextCompat.checkSelfPermission(
+                context,
+                Manifest.permission.CAMERA
+            ) == android.content.pm.PackageManager.PERMISSION_GRANTED
+        )
+    }
+
+    val permissionLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.RequestPermission()
+    ) { isGranted ->
+        hasCameraPermission = isGranted
     }
 
     // State
@@ -102,6 +89,12 @@ fun ExerciseScreen(
     var sessionId by remember { mutableStateOf<String?>(null) }
     var showCompletionDialog by remember { mutableStateOf(false) }
     var lastCycle by remember { mutableStateOf(-1) }
+
+    // Определяем тип упражнения из ID или используем ID как тип
+    val exerciseType = exercise?.exercise_id ?: exerciseId
+
+    // WebSocket URL
+    val wsUrl = "ws://10.0.2.2:8080/ws/exercise/$exerciseType"
 
     // Request permission on first launch
     LaunchedEffect(Unit) {
@@ -117,54 +110,6 @@ fun ExerciseScreen(
                 sessionId = id
                 exerciseViewModel.connectToExercise(exerciseType, authToken!!, wsUrl)
                 isSending = true
-            }
-        }
-    }
-
-    // Track cycle completion for fist-palm exercise
-    LaunchedEffect(structuredData) {
-        if (exerciseType == "fist-palm" && structuredData != null) {
-            val currentCycle = structuredData!!.current_cycle ?: 0
-
-            // If cycle increased, previous cycle is completed
-            if (currentCycle > lastCycle && lastCycle >= 0 && lastCycle > 0) {
-                // Save statistics for completed cycle
-                sessionId?.let { sid ->
-                    exerciseViewModel.addExerciseSet(
-                        token = authToken!!,
-                        sessionId = sid,
-                        exerciseId = exerciseType,
-                        repetitions = 5,
-                        duration = 60,
-                        accuracy = 95.0
-                    )
-                    exerciseViewModel.incrementSetsCompleted()
-                }
-            }
-
-            lastCycle = currentCycle
-        }
-    }
-
-    // Handle exercise completion
-    LaunchedEffect(exerciseCompleted) {
-        if (exerciseCompleted) {
-            // Save final set
-            sessionId?.let { sid ->
-                exerciseViewModel.addExerciseSet(
-                    token = authToken!!,
-                    sessionId = sid,
-                    exerciseId = exerciseType,
-                    repetitions = 5,
-                    duration = 60,
-                    accuracy = 95.0
-                )
-
-                // End workout
-                exerciseViewModel.endWorkout(authToken!!, sid)
-
-                // Show dialog
-                showCompletionDialog = true
             }
         }
     }
@@ -248,7 +193,55 @@ fun ExerciseScreen(
             }
 
             // Ждем немного перед следующей проверкой
-            delay(10) // Небольшая задержка для предотвращения busy-wait
+            delay(10)
+        }
+    }
+
+    // Track cycle completion for fist-palm exercise
+    LaunchedEffect(structuredData) {
+        if (exerciseType.contains("palm") && structuredData != null) {
+            val currentCycle = structuredData?.current_cycle ?: 0
+
+            // If cycle increased, previous cycle is completed
+            if (currentCycle > lastCycle && lastCycle >= 0 && lastCycle > 0) {
+                // Save statistics for completed cycle
+                sessionId?.let { sid ->
+                    exerciseViewModel.addExerciseSet(
+                        token = authToken!!,
+                        sessionId = sid,
+                        exerciseId = exerciseType,
+                        repetitions = 5,
+                        duration = 60,
+                        accuracy = 95.0
+                    )
+                    exerciseViewModel.incrementSetsCompleted()
+                }
+            }
+
+            lastCycle = currentCycle
+        }
+    }
+
+    // Handle exercise completion
+    LaunchedEffect(exerciseCompleted) {
+        if (exerciseCompleted) {
+            // Save final set
+            sessionId?.let { sid ->
+                exerciseViewModel.addExerciseSet(
+                    token = authToken!!,
+                    sessionId = sid,
+                    exerciseId = exerciseType,
+                    repetitions = 5,
+                    duration = 60,
+                    accuracy = 95.0
+                )
+
+                // End workout
+                exerciseViewModel.endWorkout(authToken!!, sid)
+
+                // Show dialog
+                showCompletionDialog = true
+            }
         }
     }
 
@@ -268,6 +261,18 @@ fun ExerciseScreen(
                 Text("Предоставить разрешение")
             }
         }
+    } else if (exercise == null) {
+        // Exercise not loaded yet
+        Box(
+            modifier = Modifier.fillMaxSize(),
+            contentAlignment = Alignment.Center
+        ) {
+            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                CircularProgressIndicator()
+                Spacer(modifier = Modifier.height(16.dp))
+                Text("Загрузка упражнения...")
+            }
+        }
     } else {
         // Main UI
         Column(
@@ -279,7 +284,7 @@ fun ExerciseScreen(
         ) {
             // Header
             Text(
-                text = "🎯 ${exercise?.name ?: "Упражнение"}",
+                text = "🎯 ${exercise.name}",
                 fontSize = 20.sp,
                 fontWeight = FontWeight.Bold,
                 modifier = Modifier.padding(bottom = 8.dp)
@@ -357,7 +362,7 @@ fun ExerciseScreen(
             Spacer(modifier = Modifier.height(8.dp))
 
             // For regular exercises - finger state
-            if (exerciseType != "fist-palm") {
+            if (!exerciseType.contains("palm")) {
                 Card(
                     modifier = Modifier.fillMaxWidth()
                 ) {
@@ -391,7 +396,7 @@ fun ExerciseScreen(
             }
 
             // For fist-palm exercise
-            if (exerciseType == "fist-palm" && structuredData != null) {
+            if (exerciseType.contains("palm") && structuredData != null) {
                 Spacer(modifier = Modifier.height(8.dp))
                 FistPalmProgress(structuredData!!)
             }
@@ -480,9 +485,6 @@ fun ExerciseScreen(
     }
 }
 
-/**
- * Progress display for fist-palm exercise
- */
 @Composable
 fun FistPalmProgress(structuredData: StructuredData) {
     val steps = listOf(
@@ -546,7 +548,8 @@ fun FistPalmProgress(structuredData: StructuredData) {
 
             Text("🔄 Цикл: $currentCycle/$totalCycles")
 
-            if (stateContainsHolding(currentState) && countdown != null) {
+            // ИСПРАВЛЕНО: используем currentState вместо state
+            if (currentState.contains("holding") && countdown != null) {
                 Spacer(modifier = Modifier.height(4.dp))
 
                 // Progress bar
@@ -562,8 +565,4 @@ fun FistPalmProgress(structuredData: StructuredData) {
             }
         }
     }
-}
-
-fun stateContainsHolding(state: String): Boolean {
-    return state.contains("holding")
 }
