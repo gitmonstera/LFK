@@ -15,12 +15,14 @@ import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.runtime.livedata.observeAsState
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.platform.LocalContext
@@ -59,6 +61,7 @@ fun ExerciseScreen(
     val userInfo by authViewModel.userInfo.observeAsState()
     val exercise = exerciseListViewModel.getExerciseById(exerciseId)
 
+    // Данные из ViewModel (read-only)
     val processedImage by exerciseViewModel.processedImage.observeAsState()
     val handDetected by exerciseViewModel.handDetected.observeAsState(false)
     val raisedFingers by exerciseViewModel.raisedFingers.observeAsState(0)
@@ -68,11 +71,7 @@ fun ExerciseScreen(
 
     // Camera setup
     val cameraProviderFuture = remember { ProcessCameraProvider.getInstance(context) }
-
-    // Для превью камеры
     val previewView = remember { PreviewView(context) }
-
-    // Для захвата JPEG
     var imageCapture by remember { mutableStateOf<ImageCapture?>(null) }
 
     // Permission handling
@@ -91,13 +90,21 @@ fun ExerciseScreen(
         hasCameraPermission = isGranted
     }
 
-    // Local state
+    // Local mutable state
     var sessionId by remember { mutableStateOf<String?>(null) }
     var isSending by remember { mutableStateOf(false) }
     var webSocketConnected by remember { mutableStateOf(false) }
     var logs by remember { mutableStateOf(listOf<String>()) }
     var frameCount by remember { mutableStateOf(0) }
     var sendCount by remember { mutableStateOf(0) }
+    var setsCompleted by remember { mutableStateOf(0) }
+    var lastCycle by remember { mutableStateOf(-1) }
+    var totalCycles by remember { mutableStateOf(5) }
+    var exerciseCompleted by remember { mutableStateOf(false) }
+    var showCompletionDialog by remember { mutableStateOf(false) }
+    var currentProcessedImage by remember { mutableStateOf<Bitmap?>(null) }
+
+    val statsSavedForCycle = remember { mutableSetOf<Int>() }
 
     fun addLog(message: String) {
         val time = SimpleDateFormat("HH:mm:ss", Locale.getDefault()).format(Date())
@@ -108,7 +115,6 @@ fun ExerciseScreen(
         Log.d("ExerciseScreen", message)
     }
 
-    // Определяем тип упражнения
     val exerciseType = exercise?.exercise_id ?: exerciseId
     val wsUrl = if (authToken != null) {
         ApiClient.getWebSocketUrl(exerciseType, authToken!!)
@@ -126,10 +132,10 @@ fun ExerciseScreen(
     // Start workout and connect
     LaunchedEffect(authToken, hasCameraPermission) {
         if (authToken != null && hasCameraPermission) {
-            addLog("Начинаем тренировку...")
+            addLog("🔄 Начинаем тренировку...")
             exerciseViewModel.startWorkout(authToken!!) { id ->
                 sessionId = id
-                addLog("Тренировка начата, ID: $id")
+                addLog("✅ Тренировка начата, ID: $id")
 
                 exerciseViewModel.connectToExercise(exerciseType, wsUrl)
 
@@ -137,32 +143,28 @@ fun ExerciseScreen(
                     delay(2000)
                     webSocketConnected = exerciseViewModel.isConnected()
                     if (webSocketConnected) {
-                        addLog("WebSocket подключен!")
+                        addLog("✅ WebSocket подключен!")
                         isSending = true
                     } else {
-                        addLog("WebSocket НЕ подключен!")
+                        addLog("❌ WebSocket НЕ подключен!")
                     }
                 }
             }
         }
     }
 
-    // Setup camera with ImageCapture для получения JPEG напрямую
-    // Setup camera with ImageCapture для получения JPEG напрямую
+    // Setup camera
     LaunchedEffect(cameraProviderFuture, hasCameraPermission) {
         if (!hasCameraPermission) return@LaunchedEffect
 
         try {
             val cameraProvider = cameraProviderFuture.get()
 
-            // Preview для отображения на экране
             val preview = Preview.Builder()
                 .setTargetResolution(android.util.Size(640, 480))
                 .build()
-
             preview.setSurfaceProvider(previewView.surfaceProvider)
 
-            // ImageCapture для получения JPEG
             imageCapture = ImageCapture.Builder()
                 .setCaptureMode(ImageCapture.CAPTURE_MODE_MINIMIZE_LATENCY)
                 .setTargetResolution(android.util.Size(640, 480))
@@ -185,10 +187,9 @@ fun ExerciseScreen(
         }
     }
 
-// ОТДЕЛЬНЫЙ LaunchedEffect для запуска цикла отправки
-    LaunchedEffect(isSending, webSocketConnected, imageCapture) {
-        if (!isSending || !webSocketConnected || imageCapture == null) {
-            addLog("⏳ Ожидание условий: isSending=$isSending, webSocket=$webSocketConnected, camera=${imageCapture != null}")
+    // Цикл отправки кадров
+    LaunchedEffect(isSending, webSocketConnected, imageCapture, exerciseCompleted) {
+        if (!isSending || !webSocketConnected || imageCapture == null || exerciseCompleted) {
             return@LaunchedEffect
         }
 
@@ -196,28 +197,25 @@ fun ExerciseScreen(
 
         var localFrameCount = 0
 
-        while (isSending && webSocketConnected) {
+        while (isSending && webSocketConnected && !exerciseCompleted) {
             try {
                 localFrameCount++
 
-                // Захватываем JPEG
                 imageCapture?.takePicture(
                     ContextCompat.getMainExecutor(context),
                     object : ImageCapture.OnImageCapturedCallback() {
                         override fun onCaptureSuccess(image: ImageProxy) {
                             try {
-                                // Получаем JPEG напрямую
                                 val buffer = image.planes[0].buffer
                                 val jpegBytes = ByteArray(buffer.remaining())
                                 buffer.get(jpegBytes)
 
-                                // Отправляем каждый 3-й кадр как в Python
-                                if (localFrameCount % 3 == 0) {
+                                if (localFrameCount % 3 == 0 && !exerciseCompleted) {
                                     exerciseViewModel.sendFrame(jpegBytes, exerciseType)
-                                    sendCount++
+                                    sendCount = sendCount + 1
 
                                     if (sendCount % 10 == 0) {
-                                        addLog("📤 Отправлено $sendCount кадров (${jpegBytes.size} байт)")
+                                        addLog("📤 Отправлено $sendCount кадров")
                                     }
                                 }
 
@@ -236,7 +234,6 @@ fun ExerciseScreen(
                     }
                 )
 
-                // Задержка как в Python (~30 fps)
                 delay(33)
 
             } catch (e: Exception) {
@@ -248,22 +245,110 @@ fun ExerciseScreen(
         addLog("⏹️ Цикл отправки остановлен")
     }
 
-    // Добавьте этот LaunchedEffect после ваших существующих эффектов
+    // Подписка на сообщения WebSocket
     LaunchedEffect(webSocketConnected) {
         if (!webSocketConnected) return@LaunchedEffect
 
         addLog("📡 Подписка на сообщения...")
 
-        // Собираем сообщения из отдельного Flow
         exerciseViewModel.webSocketMessages.collect { response ->
-            // Эти данные уже должны обновляться через LiveData,
-            // но можно добавить дополнительное логирование
+            // Обновляем ТОЛЬКО локальные mutableState переменные
+            // handDetected, raisedFingers, fingerStates, message - ЭТО VAL, ИХ НЕЛЬЗЯ МЕНЯТЬ!
+            // Вместо этого создадим локальные переменные для UI
+
+            // Для отображения используем данные напрямую из response
+            val currentHandDetected = response.hand_detected
+            val currentRaisedFingers = response.raised_fingers ?: 0
+            val currentFingerStates = response.finger_states ?: emptyList()
+            val currentMessage = response.message ?: ""
+
+            // Обновляем изображение (это локальная mutableState переменная)
+            response.processed_frame?.let { base64Frame ->
+                try {
+                    val decodedBytes = Base64.decode(base64Frame, Base64.DEFAULT)
+                    val bitmap = BitmapFactory.decodeByteArray(decodedBytes, 0, decodedBytes.size)
+                    currentProcessedImage = bitmap
+                } catch (e: Exception) {
+                    Log.e("ExerciseScreen", "Error decoding image", e)
+                }
+            }
+
+            // Получаем структурированные данные
+            val data = response.structured
+
+            if (data != null) {
+                val currentCycle = data.current_cycle ?: 0
+                val newTotalCycles = data.total_cycles ?: 5
+                val completed = data.completed ?: false
+
+                totalCycles = newTotalCycles
+
+                // Отслеживание завершенных циклов
+                if (currentCycle > lastCycle && lastCycle >= 0) {
+                    val completedCycle = lastCycle
+                    if (completedCycle !in statsSavedForCycle && completedCycle > 0) {
+                        statsSavedForCycle.add(completedCycle)
+                        setsCompleted = statsSavedForCycle.size
+                        addLog("✅ ЦИКЛ $completedCycle/$newTotalCycles ЗАВЕРШЕН!")
+                    }
+                }
+
+                // КРИТИЧЕСКИ ВАЖНО: при завершении упражнения НЕМЕДЛЕННО закрываем всё!
+                if (completed && !exerciseCompleted) {
+                    addLog("🎯 УПРАЖНЕНИЕ ВЫПОЛНЕНО! НЕМЕДЛЕННОЕ ЗАКРЫТИЕ...")
+
+                    // Сохраняем последний цикл
+                    if (newTotalCycles !in statsSavedForCycle) {
+                        statsSavedForCycle.add(newTotalCycles)
+                        setsCompleted = statsSavedForCycle.size
+                        addLog("✅ ЦИКЛ $newTotalCycles/$newTotalCycles ЗАВЕРШЕН!")
+                    }
+
+                    // Сохраняем статистику
+                    sessionId?.let { sid ->
+                        exerciseViewModel.addExerciseSet(
+                            token = authToken!!,
+                            sessionId = sid,
+                            exerciseId = exerciseType,
+                            repetitions = 5,
+                            duration = 60,
+                            accuracy = 95.0
+                        )
+                    }
+
+                    // Завершаем тренировку на сервере
+                    sessionId?.let { sid ->
+                        exerciseViewModel.endWorkout(authToken!!, sid)
+                    }
+
+                    // НЕМЕДЛЕННО закрываем WebSocket и останавливаем отправку
+                    exerciseViewModel.disconnect()
+                    webSocketConnected = false
+                    isSending = false
+                    exerciseCompleted = true
+
+                    // Показываем диалог
+                    showCompletionDialog = true
+                }
+
+                lastCycle = currentCycle
+            }
+
             if (sendCount % 5 == 0) {
-                addLog("📥 Получены данные: рука=${response.hand_detected}")
+                addLog("📥 Получены данные: рука=$currentHandDetected, сообщение=${currentMessage.take(20)}")
             }
         }
     }
-// Добавьте отладку в WebSocketManager.sendFrame
+
+    // Функция завершения
+    fun finishWorkout() {
+        addLog("Завершение тренировки...")
+        isSending = false
+        exerciseViewModel.disconnect()
+        coroutineScope.launch {
+            navController.popBackStack()
+        }
+    }
 
     // UI
     if (!hasCameraPermission) {
@@ -287,62 +372,111 @@ fun ExerciseScreen(
                 .verticalScroll(rememberScrollState())
         ) {
             // Заголовок
-            Text(
-                text = "🎯 ${exercise?.name ?: "Упражнение"}",
-                fontSize = 20.sp,
-                fontWeight = FontWeight.Bold
-            )
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                colors = CardDefaults.cardColors(
+                    containerColor = Color(0xFF6200EE).copy(alpha = 0.1f)
+                )
+            ) {
+                Text(
+                    text = "🎯 ${exercise?.name ?: "Упражнение"}",
+                    fontSize = 24.sp,
+                    fontWeight = FontWeight.Bold,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(16.dp)
+                )
+            }
 
             Spacer(modifier = Modifier.height(8.dp))
 
             // Статусы
-            Row(
+            Card(
                 modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween
-            ) {
-                Text(
-                    text = if (webSocketConnected) "🟢 WebSocket OK" else "🔴 WebSocket...",
-                    color = if (webSocketConnected) Color.Green else Color.Red
+                colors = CardDefaults.cardColors(
+                    containerColor = Color(0xFFF5F5F5)
                 )
-                Text(text = "📸 $sendCount кадров")
+            ) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(12.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Box(
+                            modifier = Modifier
+                                .size(12.dp)
+                                .clip(CircleShape)
+                                .background(
+                                    color = if (webSocketConnected) Color.Green else Color.Red
+                                )
+                        )
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text(
+                            text = if (webSocketConnected) "WebSocket OK" else "WebSocket...",
+                            fontSize = 14.sp
+                        )
+                    }
+
+                    Text(
+                        text = "📸 $sendCount кадров",
+                        fontSize = 14.sp,
+                        fontWeight = FontWeight.Bold
+                    )
+
+                    Text(
+                        text = "📊 $setsCompleted/$totalCycles",
+                        fontSize = 14.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = Color(0xFF6200EE)
+                    )
+                }
             }
 
             Spacer(modifier = Modifier.height(8.dp))
 
             // Оригинал с камеры
-            Text("Оригинал с камеры:", fontSize = 14.sp)
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(200.dp)
-                    .background(Color.Black)
-            ) {
-                AndroidView(
-                    factory = { previewView },
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(200.dp)
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                colors = CardDefaults.cardColors(
+                    containerColor = Color.Black
                 )
-
-                // Наложение информации
+            ) {
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .align(Alignment.TopStart)
-                        .background(Color.Black.copy(alpha = 0.5f))
-                        .padding(4.dp)
+                        .height(200.dp)
                 ) {
-                    Column {
-                        Text(
-                            text = "👤 ${userInfo?.username ?: ""}",
-                            color = Color.Green,
-                            fontSize = 12.sp
-                        )
-                        Text(
-                            text = "📊 Кадров: $frameCount",
-                            color = Color.Green,
-                            fontSize = 12.sp
-                        )
+                    AndroidView(
+                        factory = { previewView },
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(200.dp)
+                    )
+
+                    // Наложение информации
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .align(Alignment.TopStart)
+                            .background(Color.Black.copy(alpha = 0.6f))
+                            .padding(8.dp)
+                    ) {
+                        Column {
+                            Text(
+                                text = "👤 ${userInfo?.username ?: ""}",
+                                color = Color.Green,
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.Bold
+                            )
+                            Text(
+                                text = "📸 Кадров: $frameCount",
+                                color = Color.Green,
+                                fontSize = 12.sp
+                            )
+                        }
                     }
                 }
             }
@@ -350,27 +484,49 @@ fun ExerciseScreen(
             Spacer(modifier = Modifier.height(8.dp))
 
             // Обработанный кадр
-            Text("Обработанный кадр:", fontSize = 14.sp)
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(200.dp)
-                    .background(Color.Black)
+            Text(
+                text = "Обработанный кадр:",
+                fontSize = 14.sp,
+                fontWeight = FontWeight.Bold
+            )
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                colors = CardDefaults.cardColors(
+                    containerColor = Color.Black
+                )
             ) {
-                if (processedImage != null) {
-                    Image(
-                        bitmap = processedImage!!.asImageBitmap(),
-                        contentDescription = "Processed",
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(200.dp)
-                    )
-                } else {
-                    Box(
-                        modifier = Modifier.fillMaxSize(),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Text("Нет данных", color = Color.White)
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(200.dp)
+                ) {
+                    if (currentProcessedImage != null) {
+                        Image(
+                            bitmap = currentProcessedImage!!.asImageBitmap(),
+                            contentDescription = "Processed",
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(200.dp)
+                        )
+                    } else if (processedImage != null) {
+                        Image(
+                            bitmap = processedImage!!.asImageBitmap(),
+                            contentDescription = "Processed",
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(200.dp)
+                        )
+                    } else {
+                        Box(
+                            modifier = Modifier.fillMaxSize(),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text(
+                                text = "Ожидание кадра...",
+                                color = Color.White,
+                                fontSize = 16.sp
+                            )
+                        }
                     }
                 }
             }
@@ -379,23 +535,75 @@ fun ExerciseScreen(
 
             // Данные от сервера
             Card(
-                modifier = Modifier.fillMaxWidth()
+                modifier = Modifier.fillMaxWidth(),
+                colors = CardDefaults.cardColors(
+                    containerColor = if (handDetected)
+                        Color(0xFF4CAF50).copy(alpha = 0.1f)
+                    else
+                        Color(0xFFF44336).copy(alpha = 0.1f)
+                )
             ) {
                 Column(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(8.dp)
+                        .padding(12.dp)
                 ) {
-                    Text("📊 Данные:", fontWeight = FontWeight.Bold)
-                    Text("Рука: ${if (handDetected) "✅" else "❌"}")
-                    Text("Пальцев: $raisedFingers/5")
-                    Text("Сообщение: $message")
+                    Text("📊 ДАННЫЕ С СЕРВЕРА:", fontWeight = FontWeight.Bold)
+                    Divider(modifier = Modifier.padding(vertical = 4.dp))
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Text("Рука:")
+                        Text(
+                            text = if (handDetected) "✅ В КАДРЕ" else "❌ НЕ ОБНАРУЖЕНА",
+                            color = if (handDetected) Color.Green else Color.Red,
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Text("Пальцев:")
+                        Text(
+                            text = "$raisedFingers/5",
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
+
+                    if (fingerStates.isNotEmpty()) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceEvenly
+                        ) {
+                            val fingerNames = listOf("Б", "У", "С", "Бз", "М")
+                            fingerStates.forEachIndexed { index, isRaised ->
+                                Text(
+                                    text = "${fingerNames[index]} ${if (isRaised) "⬆️" else "⬇️"}",
+                                    color = if (isRaised) Color.Green else Color.Red,
+                                    fontSize = 12.sp
+                                )
+                            }
+                        }
+                    }
+
+                    Divider(modifier = Modifier.padding(vertical = 4.dp))
+
+                    Text(
+                        text = "💬 $message",
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 14.sp
+                    )
 
                     structuredData?.let {
-                        Text("Состояние: ${it.state}")
-                        Text("Цикл: ${it.current_cycle}/${it.total_cycles}")
+                        Divider(modifier = Modifier.padding(vertical = 4.dp))
+                        Text("📌 Состояние: ${it.state ?: "unknown"}")
+                        Text("🔄 Цикл: ${it.current_cycle}/$totalCycles")
                         it.countdown?.let { countdown ->
-                            Text("Таймер: $countdown с")
+                            Text("⏱️ Таймер: $countdown с")
                         }
                     }
                 }
@@ -407,7 +615,7 @@ fun ExerciseScreen(
             Card(
                 modifier = Modifier.fillMaxWidth(),
                 colors = CardDefaults.cardColors(
-                    containerColor = Color.Black.copy(alpha = 0.1f)
+                    containerColor = Color.Black.copy(alpha = 0.05f)
                 )
             ) {
                 Column(
@@ -420,12 +628,12 @@ fun ExerciseScreen(
                     if (logs.isEmpty()) {
                         Text("Нет логов", fontSize = 12.sp, color = Color.Gray)
                     } else {
-                        logs.forEach { log ->
+                        logs.take(8).forEach { log ->
                             Text(
                                 text = log,
                                 fontSize = 10.sp,
                                 color = Color.DarkGray,
-                                modifier = Modifier.padding(vertical = 1.dp)
+                                modifier = Modifier.padding(vertical = 2.dp)
                             )
                         }
                     }
@@ -436,22 +644,97 @@ fun ExerciseScreen(
 
             // Кнопка завершения
             Button(
-                onClick = {
-                    addLog("Завершение...")
-                    isSending = false
-                    exerciseViewModel.disconnect()
-                    sessionId?.let {
-                        exerciseViewModel.endWorkout(authToken!!, it)
-                    }
-                    navController.popBackStack()
-                },
+                onClick = { finishWorkout() },
                 modifier = Modifier.fillMaxWidth(),
                 colors = ButtonDefaults.buttonColors(
                     containerColor = Color.Red
                 )
             ) {
-                Text("Завершить упражнение")
+                Text(
+                    text = "Завершить упражнение",
+                    fontSize = 16.sp,
+                    fontWeight = FontWeight.Bold
+                )
             }
         }
+    }
+
+    // Диалог завершения упражнения
+    if (showCompletionDialog) {
+        AlertDialog(
+            onDismissRequest = {
+                finishWorkout()
+            },
+            title = {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(
+                        text = "🎉 ",
+                        fontSize = 28.sp
+                    )
+                    Text(
+                        text = "ПОЗДРАВЛЯЕМ!",
+                        fontSize = 20.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = Color(0xFF4CAF50)
+                    )
+                }
+            },
+            text = {
+                Column(
+                    horizontalAlignment = Alignment.CenterHorizontally
+                ) {
+                    Text(
+                        text = "Упражнение успешно выполнено!",
+                        fontSize = 16.sp,
+                        fontWeight = FontWeight.Bold
+                    )
+
+                    Spacer(modifier = Modifier.height(8.dp))
+
+                    Card(
+                        colors = CardDefaults.cardColors(
+                            containerColor = Color(0xFF4CAF50).copy(alpha = 0.1f)
+                        )
+                    ) {
+                        Column(
+                            modifier = Modifier.padding(12.dp),
+                            horizontalAlignment = Alignment.CenterHorizontally
+                        ) {
+                            Text(
+                                text = "Выполнено циклов:",
+                                fontSize = 14.sp
+                            )
+                            Text(
+                                text = "$setsCompleted/$totalCycles",
+                                fontSize = 24.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = Color(0xFF4CAF50)
+                            )
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(8.dp))
+
+                    Text(
+                        text = "Молодец! Так держать! 💪",
+                        fontSize = 14.sp,
+                        color = Color.Gray
+                    )
+                }
+            },
+            confirmButton = {
+                Button(
+                    onClick = { finishWorkout() },
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = Color(0xFF4CAF50)
+                    )
+                ) {
+                    Text(
+                        text = "ОТЛИЧНО!",
+                        fontWeight = FontWeight.Bold
+                    )
+                }
+            }
+        )
     }
 }
