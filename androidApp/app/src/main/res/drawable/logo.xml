@@ -39,8 +39,7 @@
         android:strokeColor="#FF667EEA"
         android:strokeLineCap="round"
         android:strokeAlpha="0.4"
-        android:fillColor="#00000000"
-        android:strokeDashArray="3,3" />
+        android:fillColor="#00000000" />
 
     <!-- Правая спираль ДНК -->
     <path
@@ -57,8 +56,7 @@
         android:strokeColor="#FF764BA2"
         android:strokeLineCap="round"
         android:strokeAlpha="0.4"
-        android:fillColor="#00000000"
-        android:strokeDashArray="3,3" />
+        android:fillColor="#00000000" />
 
     <!-- Голова (кристалл здоровья) -->
     <path
