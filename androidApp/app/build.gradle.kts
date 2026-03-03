@@ -82,6 +82,7 @@ dependencies {
     implementation(libs.androidx.compose.foundation)
 
     implementation("androidx.compose.material:material-icons-extended:1.5.4")
+    implementation(libs.androidx.tv.material)
 
     // Testing
     testImplementation(libs.junit)

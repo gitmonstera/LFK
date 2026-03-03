@@ -41,12 +41,6 @@ class MainActivity : ComponentActivity() {
                                 authViewModel = authViewModel
                             )
                         }
-                        composable("login") {
-                            LoginScreen(
-                                navController = navController,
-                                authViewModel = authViewModel
-                            )
-                        }
                         composable("register") {
                             RegisterScreen(
                                 navController = navController,
