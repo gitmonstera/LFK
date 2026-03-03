@@ -12,7 +12,6 @@ import com.example.lfk.api.ApiClient
 import com.example.lfk.api.WebSocketManager
 import com.example.lfk.models.*
 import kotlinx.coroutines.Job
-import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.launchIn
 import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.launch
@@ -57,6 +56,9 @@ class ExerciseViewModel : ViewModel() {
     private val _error = MutableLiveData<String?>()
     val error: LiveData<String?> = _error
 
+    private val _exerciseState = MutableLiveData<Map<String, Any>?>()
+    val exerciseState: LiveData<Map<String, Any>?> = _exerciseState
+
     private var lastCycle = -1
     private val statsSavedForCycle = mutableSetOf<Int>()
     private var receiveJob: Job? = null
@@ -69,8 +71,9 @@ class ExerciseViewModel : ViewModel() {
             .launchIn(viewModelScope)
     }
 
-    fun connectToExercise(exerciseType: String, token: String, url: String) {
-        webSocketManager.connect(url, token)
+    fun connectToExercise(exerciseType: String, url: String) {
+        Log.d("ExerciseViewModel", "Connecting to WebSocket: $url")
+        webSocketManager.connect(url)
     }
 
     fun startWorkout(token: String, onSuccess: (String) -> Unit) {
@@ -90,7 +93,34 @@ class ExerciseViewModel : ViewModel() {
         }
     }
 
+    fun checkExerciseState(token: String, exerciseType: String) {
+        viewModelScope.launch {
+            try {
+                val response = apiService.checkExerciseState("Bearer $token", exerciseType)
+                _exerciseState.value = response
+                Log.d("ExerciseViewModel", "Exercise state: $response")
+            } catch (e: Exception) {
+                Log.e("ExerciseViewModel", "Error checking exercise state", e)
+            }
+        }
+    }
+
+    fun resetExercise(token: String, exerciseType: String) {
+        viewModelScope.launch {
+            try {
+                val response = apiService.resetExercise(
+                    "Bearer $token",
+                    mapOf("exercise_type" to exerciseType)
+                )
+                Log.d("ExerciseViewModel", "Exercise reset: $response")
+            } catch (e: Exception) {
+                Log.e("ExerciseViewModel", "Error resetting exercise", e)
+            }
+        }
+    }
+
     fun sendFrame(frameBytes: ByteArray, exerciseType: String) {
+        Log.d("ExerciseViewModel", "📤 sendFrame вызван: ${frameBytes.size} байт")
         webSocketManager.sendFrame(frameBytes, exerciseType)
     }
 
@@ -134,53 +164,39 @@ class ExerciseViewModel : ViewModel() {
         }
     }
 
-    fun resetExercise(token: String, exerciseType: String) {
-        viewModelScope.launch {
-            try {
-                apiService.resetExercise("Bearer $token", mapOf("exercise_type" to exerciseType))
-                Log.d("ExerciseViewModel", "Exercise reset requested")
-            } catch (e: Exception) {
-                Log.e("ExerciseViewModel", "Reset exercise error", e)
-            }
-        }
-    }
-
     private fun handleWebSocketResponse(response: WebSocketResponse) {
+        Log.d("ExerciseViewModel", "Handling response")
+
         _handDetected.value = response.hand_detected
         _raisedFingers.value = response.raised_fingers ?: 0
         _fingerStates.value = response.finger_states ?: listOf(false, false, false, false, false)
         _message.value = response.message ?: ""
 
+        // Обрабатываем изображение
         response.processed_frame?.let { base64Frame ->
             try {
+                Log.d("ExerciseViewModel", "Image base64 length: ${base64Frame.length}")
+
+                // Декодируем
                 val decodedBytes = Base64.decode(base64Frame, Base64.DEFAULT)
+                Log.d("ExerciseViewModel", "Decoded bytes: ${decodedBytes.size}")
+
+                // Создаем bitmap
                 val bitmap = BitmapFactory.decodeByteArray(decodedBytes, 0, decodedBytes.size)
-                _processedImage.value = bitmap
+
+                if (bitmap != null) {
+                    Log.d("ExerciseViewModel", "Bitmap OK: ${bitmap.width}x${bitmap.height}")
+                    _processedImage.value = bitmap
+                } else {
+                    Log.e("ExerciseViewModel", "Bitmap is null")
+                }
             } catch (e: Exception) {
-                Log.e("ExerciseViewModel", "Error decoding image", e)
+                Log.e("ExerciseViewModel", "Error decoding", e)
             }
         }
 
-        response.structured?.let { structured ->
-            _structuredData.value = structured
-
-            structured.total_cycles?.let { _totalCycles.value = it }
-
-            val currentCycle = structured.current_cycle ?: 0
-            val completed = structured.completed ?: false
-
-            if (currentCycle > lastCycle && lastCycle >= 0) {
-                val completedCycle = lastCycle
-                if (completedCycle !in statsSavedForCycle && completedCycle > 0) {
-                    // Цикл завершен
-                }
-            }
-
-            if (completed && !(_exerciseCompleted.value == true)) {
-                _exerciseCompleted.value = true
-            }
-
-            lastCycle = currentCycle
+        response.structured?.let {
+            _structuredData.value = it
         }
     }
 
@@ -193,6 +209,7 @@ class ExerciseViewModel : ViewModel() {
         _structuredData.value = null
         _setsCompleted.value = 0
         _exerciseCompleted.value = false
+        _exerciseState.value = null
         lastCycle = -1
         statsSavedForCycle.clear()
     }

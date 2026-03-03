@@ -14,7 +14,8 @@ okhttp = "4.12.0"
 retrofit = "2.11.0"  # Обновляем Retrofit
 gson = "2.11.0"  # Обновляем Gson
 coroutines = "1.9.0"
-uiText = "1.10.3"  # Обновляем Coroutines
+uiText = "1.10.3"
+foundation = "1.10.3"  # Обновляем Coroutines
 
 [libraries]
 # Android Core
@@ -58,6 +59,7 @@ junit = { group = "junit", name = "junit", version.ref = "junit" }
 androidx-junit = { group = "androidx.test.ext", name = "junit", version.ref = "junitVersion" }
 androidx-espresso-core = { group = "androidx.test.espresso", name = "espresso-core", version.ref = "espressoCore" }
 androidx-compose-ui-text = { group = "androidx.compose.ui", name = "ui-text", version.ref = "uiText" }
+androidx-compose-foundation = { group = "androidx.compose.foundation", name = "foundation", version.ref = "foundation" }
 
 [plugins]
 android-application = { id = "com.android.application", version.ref = "agp" }

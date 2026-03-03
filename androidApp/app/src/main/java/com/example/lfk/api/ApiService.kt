@@ -35,13 +35,18 @@ interface ApiService {
         @Body request: Map<String, String>
     ): Map<String, String>
 
+    @GET("api/exercise_state")
+    suspend fun checkExerciseState(
+        @Header("Authorization") token: String,
+        @Query("type") exerciseType: String
+    ): Map<String, Any>
+
     @POST("api/exercise/reset")
     suspend fun resetExercise(
         @Header("Authorization") token: String,
         @Body request: Map<String, String>
     ): Map<String, Any>
 
-    // Новый метод для получения списка упражнений
     @GET("api/get_exercise_list")
     suspend fun getExerciseList(
         @Header("Authorization") token: String
@@ -49,7 +54,8 @@ interface ApiService {
 }
 
 object ApiClient {
-    private const val BASE_URL = "http://10.0.2.2:8080/" // Для эмулятора Android
+    // IP вашего компьютера в локальной сети
+    private const val BASE_URL = "http://192.168.0.143:8080/"
 
     private val logging = HttpLoggingInterceptor().apply {
         level = HttpLoggingInterceptor.Level.BODY
@@ -62,7 +68,6 @@ object ApiClient {
         .writeTimeout(30, TimeUnit.SECONDS)
         .build()
 
-    // Создаем Gson с кастомным десериализатором
     private val gson = GsonBuilder()
         .registerTypeAdapter(User::class.java, UserDeserializer())
         .create()
@@ -74,5 +79,12 @@ object ApiClient {
             .addConverterFactory(GsonConverterFactory.create(gson))
             .build()
             .create(ApiService::class.java)
+    }
+
+    // Функция для получения WebSocket URL с токеном в query параметре
+    fun getWebSocketUrl(exerciseType: String, token: String): String {
+        val baseWsUrl = BASE_URL.replace("http://", "ws://")
+        // Формируем URL: ws://192.168.0.143:8080/ws/exercise/fist-palm?token=...
+        return "${baseWsUrl}ws/exercise/$exerciseType?token=$token"
     }
 }

@@ -4,11 +4,6 @@ import android.os.Parcelable
 import kotlinx.parcelize.Parcelize
 
 /**
- * Модели данных для работы с API и WebSocket
- * Используем @Parcelize для передачи данных между компонентами
- */
-
-/**
  * Пользователь системы
  */
 @Parcelize
@@ -91,7 +86,11 @@ data class WebSocketResponse(
     val finger_states: List<Boolean>?,
     val processed_frame: String?,  // Base64 encoded JPEG with landmarks
     val structured: StructuredData?,
-    val timestamp: String
+    val timestamp: String?,
+    val fist_detected: Boolean?,
+    val current_exercise: String?,
+    val exercise_name: String?,
+    val status: String?
 ) : Parcelable
 
 /**
@@ -107,3 +106,4 @@ data class StructuredData(
     val completed: Boolean?,     // Завершено ли упражнение
     val auto_reset: Boolean?     // Автосброс после завершения
 ) : Parcelable
+

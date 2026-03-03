@@ -1,7 +1,7 @@
 package com.example.lfk.api
 
-import com.example.lfk.models.User
 import com.google.gson.*
+import com.example.lfk.models.User
 import java.lang.reflect.Type
 
 class UserDeserializer : JsonDeserializer<User> {
@@ -26,11 +26,9 @@ class UserDeserializer : JsonDeserializer<User> {
         val element = jsonObject.get(fieldName) ?: return null
 
         return if (element.isJsonObject) {
-            // Если это объект с полями String и Valid
             val obj = element.asJsonObject
             obj.get("String")?.asString
         } else {
-            // Если это простая строка
             element.asString
         }
     }
