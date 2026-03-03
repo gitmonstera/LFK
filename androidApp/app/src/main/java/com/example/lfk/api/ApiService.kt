@@ -51,6 +51,37 @@ interface ApiService {
     suspend fun getExerciseList(
         @Header("Authorization") token: String
     ): ExerciseListResponse
+
+    @GET("api/stats/overall")
+    suspend fun getOverallStats(
+        @Header("Authorization") token: String
+    ): OverallStats
+
+    @GET("api/stats/daily")
+    suspend fun getDailyStats(
+        @Header("Authorization") token: String,
+        @Query("date") date: String
+    ): DailyStats
+
+    @GET("api/stats/weekly")
+    suspend fun getWeeklyStats(
+        @Header("Authorization") token: String
+    ): List<DailyStatItem>
+
+    @GET("api/stats/monthly")
+    suspend fun getMonthlyStats(
+        @Header("Authorization") token: String
+    ): List<Map<String, Any>>
+
+    @GET("api/stats/exercises")
+    suspend fun getExerciseStats(
+        @Header("Authorization") token: String
+    ): List<ExerciseStatItem>
+
+    @GET("api/workout/history")
+    suspend fun getWorkoutHistory(
+        @Header("Authorization") token: String
+    ): List<WorkoutHistoryItem>
 }
 
 object ApiClient {

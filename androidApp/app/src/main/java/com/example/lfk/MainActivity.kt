@@ -59,6 +59,12 @@ class MainActivity : ComponentActivity() {
                                 authViewModel = authViewModel
                             )
                         }
+                        composable("stats") {
+                            StatsScreen(
+                                navController = navController,
+                                authToken = authViewModel.authToken.value
+                            )
+                        }
                         composable("exercise_selection") {
                             ExerciseSelectionScreen(
                                 navController = navController,

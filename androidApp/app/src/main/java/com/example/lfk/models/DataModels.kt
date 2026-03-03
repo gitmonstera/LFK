@@ -4,6 +4,11 @@ import android.os.Parcelable
 import kotlinx.parcelize.Parcelize
 
 /**
+ * Модели данных для работы с API и WebSocket
+ * Используем @Parcelize для передачи данных между компонентами
+ */
+
+/**
  * Пользователь системы
  */
 @Parcelize
@@ -86,11 +91,7 @@ data class WebSocketResponse(
     val finger_states: List<Boolean>?,
     val processed_frame: String?,  // Base64 encoded JPEG with landmarks
     val structured: StructuredData?,
-    val timestamp: String?,
-    val fist_detected: Boolean?,
-    val current_exercise: String?,
-    val exercise_name: String?,
-    val status: String?
+    val timestamp: String
 ) : Parcelable
 
 /**
@@ -107,3 +108,92 @@ data class StructuredData(
     val auto_reset: Boolean?     // Автосброс после завершения
 ) : Parcelable
 
+/**
+ * Общая статистика
+ */
+@Parcelize
+data class OverallStats(
+    val total_sessions: Int,
+    val total_exercises: Int,
+    val total_repetitions: Int,
+    val total_duration: Int,
+    val unique_exercises: Int,
+    val current_streak: Int,
+    val longest_streak: Int,
+    val last_workout_at: String?
+) : Parcelable
+
+/**
+ * Дневная статистика
+ */
+@Parcelize
+data class DailyStats(
+    val total_sessions: Int,
+    val total_exercises: Int,
+    val total_duration_seconds: Int,
+    val calories_burned: Double,
+    val completed: Boolean
+) : Parcelable
+
+/**
+ * Статистика за неделю (массив дней)
+ */
+typealias WeeklyStats = List<DailyStatItem>
+
+@Parcelize
+data class DailyStatItem(
+    val stat_date: String,
+    val total_sessions: Int,
+    val total_exercises: Int,
+    val total_duration_seconds: Int,
+    val completed: Boolean
+) : Parcelable
+
+/**
+ * Статистика за месяц (сгруппированная по неделям)
+ */
+@Parcelize
+data class MonthlyStats(
+    val weeks: List<WeekStats>
+) : Parcelable
+
+@Parcelize
+data class WeekStats(
+    val week_number: Int,
+    val sessions: Int,
+    val exercises: Int,
+    val duration: Int
+) : Parcelable
+
+/**
+ * Статистика по упражнениям
+ */
+@Parcelize
+data class ExerciseStatItem(
+    val exercise_name: String,
+    val total_sessions: Int,
+    val total_repetitions: Int,
+    val total_duration: Int,
+    val best_accuracy: Double?,
+    val avg_accuracy: Double?,
+    val last_performed_at: String?
+) : Parcelable
+
+/**
+ * История тренировок
+ */
+@Parcelize
+data class WorkoutHistoryItem(
+    val started_at: String,
+    val total_exercises: Int,
+    val total_reps: Int,
+    val total_duration: Int,
+    val avg_accuracy: Double,
+    val exercises: List<HistoryExercise>
+) : Parcelable
+
+@Parcelize
+data class HistoryExercise(
+    val name: String,
+    val repetitions: Int
+) : Parcelable

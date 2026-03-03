@@ -120,6 +120,11 @@ fun MainMenuScreen(
                 color = Color(0xFF2196F3)
             )
         }
+        MenuButton(
+            text = "5 - Статистика",
+            onClick = { navController.navigate("stats") },
+            color = Color(0xFFFF9800) // Оранжевый
+        )
 
         Spacer(modifier = Modifier.height(24.dp))
 
