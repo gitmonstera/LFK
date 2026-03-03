@@ -1,5 +1,3 @@
-import cv2
-import numpy as np
 import time
 from .base_exercise import BaseExercise
 

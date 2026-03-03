@@ -156,6 +156,7 @@ class ExerciseManager:
 
     def process_hand(self, results, display_frame, h, w):
         """Обрабатывает кадр с рукой"""
+        global message
         raised_fingers = 0
         finger_states = []
 

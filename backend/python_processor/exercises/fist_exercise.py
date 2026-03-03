@@ -1,5 +1,3 @@
-import cv2
-import numpy as np
 from .base_exercise import BaseExercise
 
 class FistExercise(BaseExercise):

@@ -1,6 +1,5 @@
 from abc import ABC, abstractmethod
 import cv2
-import mediapipe as mp
 
 class BaseExercise(ABC):
     """Базовый класс для всех упражнений"""
