@@ -1,0 +1,149 @@
+# configs/config.yaml
+server:
+  name: "lfk-backend"
+  environment: "production"  # development, staging, production
+  http_port: 8080
+  grpc_port: 50051
+  shutdown_timeout: 30s
+
+  # Множественные инстансы для горизонтального масштабирования
+  instances:
+    min: 3
+    max: 20
+    id: "${HOSTNAME}"  # будет заменено на hostname
+
+database:
+  postgres:
+    master:
+      host: "postgres-master"
+      port: 5432
+      user: "${DB_USER}"
+      password: "${DB_PASSWORD}"
+      database: "lfkdb"
+      ssl_mode: "disable"
+      max_connections: 100
+      min_connections: 10
+      max_idle_connections: 10
+      connection_max_lifetime: 1h
+
+    replicas:
+      - host: "postgres-replica-1"
+        port: 5432
+      - host: "postgres-replica-2"
+        port: 5432
+
+  redis:
+    mode: "cluster"  # standalone, cluster, sentinel
+    addresses:
+      - "redis-node-1:6379"
+      - "redis-node-2:6379"
+      - "redis-node-3:6379"
+      - "redis-node-4:6379"
+      - "redis-node-5:6379"
+      - "redis-node-6:6379"
+    password: ""
+    pool_size: 100
+    min_idle_conns: 10
+    dial_timeout: 5s
+    read_timeout: 3s
+    write_timeout: 3s
+
+python_processor:
+  pool:
+    min_size: 5
+    max_size: 20
+    health_check_interval: 10s
+    request_timeout: 5s
+
+  service_discovery: "consul"  # consul, kubernetes, static
+  consul_address: "consul:8500"
+
+  # Статический список (если не используется service discovery)
+  static_addresses:
+    - "python-processor-1:5001"
+    - "python-processor-2:5001"
+    - "python-processor-3:5001"
+
+auth:
+  jwt_secret: "${JWT_SECRET}"
+  token_duration: 24h
+  refresh_token_duration: 720h
+
+websocket:
+  max_connections_per_server: 500
+  read_buffer_size: 1048576  # 1MB
+  write_buffer_size: 1048576  # 1MB
+  read_timeout: 60s
+  write_timeout: 60s
+  ping_interval: 30s
+  pong_timeout: 60s
+  max_message_size: 10485760  # 10MB
+
+load_balancer:
+  type: "nginx"  # nginx, haproxy, aws_alb
+  sticky_sessions: true
+  health_check_path: "/health"
+  health_check_interval: 10s
+
+queues:
+  frame_processing:
+    name: "queue:python:tasks"
+    max_size: 10000
+    priority_levels: 3
+    retry_count: 3
+    retry_delay: 1s
+
+  stats_update:
+    name: "queue:stats:tasks"
+    max_size: 5000
+    workers: 5
+
+cache:
+  exercise_state_ttl: 5s
+  user_session_ttl: 1h
+  stats_ttl: 5m
+  leaderboard_ttl: 1m
+
+monitoring:
+  enabled: true
+  prometheus_port: 9090
+  metrics_path: "/metrics"
+
+  health_check:
+    path: "/health"
+    detailed_path: "/health/detailed"
+
+  tracing:
+    enabled: true
+    provider: "jaeger"
+    jaeger_address: "jaeger:6831"
+    sample_rate: 0.1
+
+logging:
+  level: "info"  # debug, info, warn, error
+  format: "json"  # json, text
+  output_paths:
+    - "stdout"
+    - "/var/log/lfk/app.log"
+  error_output_paths:
+    - "stderr"
+
+rate_limiting:
+  enabled: true
+  requests_per_second: 100
+  burst: 200
+  type: "token_bucket"  # token_bucket, leaky_bucket
+
+security:
+  cors_allowed_origins:
+    - "https://app.lfk.com"
+    - "https://admin.lfk.com"
+  cors_allowed_methods:
+    - "GET"
+    - "POST"
+    - "PUT"
+    - "DELETE"
+    - "OPTIONS"
+  enable_https: true
+  ssl_cert_path: "/etc/ssl/certs/lfk.crt"
+  ssl_key_path: "/etc/ssl/private/lfk.key"
