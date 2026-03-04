@@ -1,3 +1,4 @@
+// internal/handlers/user_handler.go - ПОЛНЫЙ ФАЙЛ
 package handlers
 
 import (
@@ -14,14 +15,16 @@ import (
 )
 
 type UserHandler struct {
-	userRepo   *repository.UserRepository
-	jwtManager *auth.JWTManager
+	userRepo      *repository.UserRepository
+	jwtSecret     string
+	tokenDuration time.Duration
 }
 
-func NewUserHandler(userRepo *repository.UserRepository, jwtManager *auth.JWTManager) *UserHandler {
+func NewUserHandler(userRepo *repository.UserRepository, jwtSecret string, tokenDuration time.Duration) *UserHandler {
 	return &UserHandler{
-		userRepo:   userRepo,
-		jwtManager: jwtManager,
+		userRepo:      userRepo,
+		jwtSecret:     jwtSecret,
+		tokenDuration: tokenDuration,
 	}
 }
 
@@ -83,8 +86,9 @@ func (h *UserHandler) Register(c *gin.Context) {
 		return
 	}
 
-	// Генерируем токен
-	token, err := h.jwtManager.GenerateToken(user)
+	// Создаем JWT менеджер и генерируем токен
+	jwtManager := auth.NewJWTManager(h.jwtSecret, h.tokenDuration)
+	token, err := jwtManager.GenerateToken(user)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{
 			"error": "Failed to generate token",
@@ -127,7 +131,9 @@ func (h *UserHandler) Login(c *gin.Context) {
 
 	_ = h.userRepo.UpdateLastLogin(user.ID)
 
-	token, err := h.jwtManager.GenerateToken(user)
+	// Создаем JWT менеджер и генерируем токен
+	jwtManager := auth.NewJWTManager(h.jwtSecret, h.tokenDuration)
+	token, err := jwtManager.GenerateToken(user)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{
 			"error": "Failed to generate token",

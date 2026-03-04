@@ -1,15 +1,18 @@
+// internal/middleware/auth_middleware.go
 package middleware
 
 import (
+	"context"
 	"lfk-backend/internal/auth"
 	"log"
 	"net/http"
 	"strings"
+	"time"
 
 	"github.com/gin-gonic/gin"
 )
 
-func AuthMiddleware(jwtManager *auth.JWTManager) gin.HandlerFunc {
+func AuthMiddleware(jwtSecret string) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		// Отладка - печатаем все заголовки и параметры
 		log.Println("=== AUTH MIDDLEWARE DEBUG ===")
@@ -60,6 +63,9 @@ func AuthMiddleware(jwtManager *auth.JWTManager) gin.HandlerFunc {
 
 		log.Printf("Token string (first 20 chars): %s...", tokenString[:20])
 
+		// Создаем JWT менеджер для проверки токена
+		jwtManager := auth.NewJWTManager(jwtSecret, 24*time.Hour)
+
 		// Проверяем токен
 		claims, err := jwtManager.VerifyToken(tokenString)
 		if err != nil {
@@ -71,12 +77,22 @@ func AuthMiddleware(jwtManager *auth.JWTManager) gin.HandlerFunc {
 			return
 		}
 
-		log.Printf("Token verified successfully for user: %s", claims.Username)
+		log.Printf("Token verified successfully for user: %s (ID: %s)", claims.Username, claims.UserID)
 
-		// Сохраняем информацию о пользователе
+		// Сохраняем информацию о пользователе в контекст Gin
 		c.Set("user_id", claims.UserID)
 		c.Set("username", claims.Username)
 		c.Set("email", claims.Email)
+
+		// ВАЖНО: Также добавляем в Request.Context для WebSocket
+		// Создаем новый контекст с значениями
+		ctx := c.Request.Context()
+		ctx = context.WithValue(ctx, "user_id", claims.UserID)
+		ctx = context.WithValue(ctx, "username", claims.Username)
+		ctx = context.WithValue(ctx, "email", claims.Email)
+		c.Request = c.Request.WithContext(ctx)
+
+		log.Printf("✅ User data saved to context: user_id=%s", claims.UserID)
 
 		c.Next()
 	}

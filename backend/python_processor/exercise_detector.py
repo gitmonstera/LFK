@@ -344,12 +344,13 @@ def process_frame():
     try:
         data = request.get_json()
         if not data:
+            log.warning("❌ No data provided")
             return jsonify({"error": "No data provided"}), 400
 
         # Проверяем, есть ли запрос только на получение состояния
         if data.get('get_state_only'):
             exercise_type = data.get('exercise_type', 'fist-palm')
-            print(f"📊 ЗАПРОС СОСТОЯНИЯ УПРАЖНЕНИЯ: {exercise_type}")
+            log.info(f"📊 STATE CHECK: {exercise_type}")
 
             if exercise_type != exercise_manager.current_exercise_id:
                 exercise_manager.set_exercise(exercise_type)
@@ -357,6 +358,7 @@ def process_frame():
             structured = None
             if hasattr(exercise_manager.current_exercise, 'get_structured_data'):
                 structured = exercise_manager.current_exercise.get_structured_data()
+                log.info(f"📊 Current state: {structured.get('state')}, cycle={structured.get('current_cycle')}")
 
             return jsonify({
                 "status": "success",
@@ -372,7 +374,7 @@ def process_frame():
         # Проверяем, есть ли запрос на сброс для нового подхода
         if data.get('reset_for_new_attempt'):
             exercise_type = data.get('exercise_type', 'fist-palm')
-            print(f"🔄 ПОЛУЧЕН ЗАПРОС НА СБРОС УПРАЖНЕНИЯ: {exercise_type}")
+            log.info(f"🔄 RESET: {exercise_type}")
 
             if exercise_type != exercise_manager.current_exercise_id:
                 exercise_manager.set_exercise(exercise_type)
@@ -408,19 +410,22 @@ def process_frame():
 
         frame = data.get('frame')
         if not frame:
+            log.warning("❌ No frame provided")
             return jsonify({"error": "No frame provided"}), 400
 
+        log.info(f"📸 Processing frame, size: {len(frame)} bytes")
         result = exercise_manager.process_frame(frame)
+        log.info(f"✅ Frame processed, hand_detected={result.get('hand_detected')}, message='{result.get('message')}'")
 
         # Если упражнение завершено, помечаем его для сброса при следующем запуске
         if result and result.get('structured') and result['structured'].get('completed'):
-            print(f"🎯 Упражнение завершено, помечаем для сброса при следующем запуске")
+            log.info(f"🎯 Exercise completed")
             if hasattr(exercise_manager.current_exercise, 'mark_for_reset'):
                 exercise_manager.current_exercise.mark_for_reset()
 
         return jsonify(result)
     except Exception as e:
-        print(f"❌ Ошибка в /process: {e}")
+        log.error(f"❌ Error in /process: {e}")
         import traceback
         traceback.print_exc()
         return jsonify({
@@ -508,4 +513,4 @@ if __name__ == '__main__':
     for ex in exercise_manager.get_exercise_list():
         print(f"   - {ex['id']}: {ex['name']}")
     print("=" * 60)
-    socketio.run(app, host='0.0.0.0', port=5001, debug=True, allow_unsafe_werkzeug=True)
+    socketio.run(app, host='0.0.0.0', port=5001, debug=False, allow_unsafe_werkzeug=True)

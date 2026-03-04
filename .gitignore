@@ -2,6 +2,7 @@
 venv/
 backend/python_processor/venv/
 python_processor/venv/
+backend/configs/config.yaml
 
 # Python
 __pycache__/

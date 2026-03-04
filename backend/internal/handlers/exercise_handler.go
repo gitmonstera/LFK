@@ -1,18 +1,21 @@
+// internal/handlers/exercise_handler.go
 package handlers
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
-	"log"
-	"net/http"
-	"time"
-
-	"lfk-backend/internal/models"
-	"lfk-backend/internal/repository"
+	"lfk-backend/internal/config"
+	_ "lfk-backend/internal/models"
+	"lfk-backend/internal/redis"
 	"lfk-backend/internal/websocket"
 	"lfk-backend/pkg/python_bridge"
+	"log"
+	"net/http"
+	"sync"
+	"time"
 
-	"github.com/gin-gonic/gin"
+	"github.com/gin-gonic/gin" // Добавьте этот импорт
 	"github.com/google/uuid"
 	gorilla "github.com/gorilla/websocket"
 )
@@ -26,492 +29,391 @@ var upgrader = gorilla.Upgrader{
 }
 
 type ExerciseHandler struct {
-	hub          *websocket.Hub
+	hub          *websocket.ClusterHub
 	pythonClient *python_bridge.Client
-	sessions     map[string]*models.ExerciseSession
-	exerciseRepo *repository.ExerciseRepository // Добавляем репозиторий
+	redisClient  *redis.RedisClient
+	sessions     sync.Map
+	config       *config.Config
+	serverID     string
+
+	// Кэш
+	stateCache *sync.Map
+}
+
+type SessionInfo struct {
+	ID          string    `json:"id"`
+	UserID      string    `json:"user_id"`
+	ExerciseID  string    `json:"exercise_id"`
+	StartTime   time.Time `json:"start_time"`
+	LastFrameAt time.Time `json:"last_frame_at"`
+	FrameCount  int64     `json:"frame_count"`
+	ServerID    string    `json:"server_id"`
 }
 
 func NewExerciseHandler(
-	hub *websocket.Hub,
-	pythonURL string,
-	exerciseRepo *repository.ExerciseRepository, // Добавляем параметр
+	hub *websocket.ClusterHub,
+	pythonClient *python_bridge.Client,
+	redisClient *redis.RedisClient,
+	cfg *config.Config,
+	serverID string,
 ) *ExerciseHandler {
 	return &ExerciseHandler{
 		hub:          hub,
-		pythonClient: python_bridge.NewClient(pythonURL),
-		sessions:     make(map[string]*models.ExerciseSession),
-		exerciseRepo: exerciseRepo, // Сохраняем репозиторий
+		pythonClient: pythonClient,
+		redisClient:  redisClient,
+		config:       cfg,
+		serverID:     serverID,
+		stateCache:   &sync.Map{},
 	}
-}
-
-// GetExerciseListFromDB - возвращает полный список упражнений из БД
-func (h *ExerciseHandler) GetExerciseListFromDB(c *gin.Context) {
-	log.Printf("📋 Запрос полного списка упражнений из БД")
-
-	// Получаем список упражнений из репозитория
-	exercises, err := h.exerciseRepo.GetExerciseList()
-	if err != nil {
-		log.Printf("❌ Ошибка получения списка упражнений из БД: %v", err)
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"error":   "Failed to get exercise list from database",
-			"details": err.Error(),
-		})
-		return
-	}
-
-	// Формируем ответ
-	response := models.ExerciseListResponse{
-		Items: exercises,
-	}
-
-	log.Printf("✅ Отправлено %d упражнений", len(exercises))
-	c.JSON(http.StatusOK, response)
-}
-
-// GetExerciseState - возвращает текущее состояние упражнения
-func (h *ExerciseHandler) GetExerciseState(c *gin.Context) {
-	exerciseType := c.Query("type")
-	if exerciseType == "" {
-		exerciseType = "fist-palm"
-	}
-
-	log.Printf("📊 Запрос состояния упражнения: %s", exerciseType)
-
-	stateRequest := map[string]interface{}{
-		"exercise_type":  exerciseType,
-		"get_state_only": true,
-	}
-
-	resp, err := h.pythonClient.ProcessFrame(stateRequest)
-	if err != nil {
-		log.Printf("❌ Ошибка получения состояния от Python: %v", err)
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"error":   "Failed to get exercise state",
-			"details": err.Error(),
-		})
-		return
-	}
-
-	response := gin.H{
-		"status":           "success",
-		"current_exercise": resp.CurrentExercise,
-		"exercise_name":    resp.ExerciseName,
-		"auto_reset":       false,
-	}
-
-	if resp.Structured != nil {
-		response["structured"] = gin.H{
-			"state":            resp.Structured.State,
-			"state_name":       resp.Structured.StateName,
-			"current_cycle":    resp.Structured.Cycle,
-			"total_cycles":     resp.Structured.TotalCycles,
-			"completed":        resp.Structured.Completed,
-			"countdown":        resp.Structured.Countdown,
-			"progress_percent": resp.Structured.Progress,
-			"message":          resp.Structured.Message,
-			"step":             resp.Structured.Step,
-			"step_name":        resp.Structured.StepName,
-		}
-
-		if stateStr, ok := resp.Structured.State.(string); ok {
-			response["auto_reset"] = (stateStr == "completed")
-		}
-	}
-
-	log.Printf("📊 Состояние упражнения: cycle=%d, completed=%v",
-		resp.Structured.Cycle, resp.Structured.Completed)
-	c.JSON(http.StatusOK, response)
-}
-
-// ResetExercise - универсальный сброс упражнения
-func (h *ExerciseHandler) ResetExercise(c *gin.Context) {
-	var req struct {
-		ExerciseType string `json:"exercise_type" binding:"required"`
-	}
-
-	if err := c.ShouldBindJSON(&req); err != nil {
-		log.Printf("❌ Ошибка парсинга запроса: %v", err)
-		c.JSON(http.StatusBadRequest, gin.H{
-			"error":   "Invalid request format",
-			"details": err.Error(),
-		})
-		return
-	}
-
-	log.Printf("🔄 Получен запрос на сброс упражнения: %s", req.ExerciseType)
-
-	resetRequest := map[string]interface{}{
-		"exercise_type":         req.ExerciseType,
-		"reset_for_new_attempt": true,
-	}
-
-	resp, err := h.pythonClient.ProcessFrame(resetRequest)
-	if err != nil {
-		log.Printf("❌ Ошибка при сбросе упражнения в Python: %v", err)
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"error":   "Failed to reset exercise",
-			"details": err.Error(),
-		})
-		return
-	}
-
-	response := gin.H{
-		"status":           "success",
-		"message":          "Exercise reset successfully",
-		"current_exercise": resp.CurrentExercise,
-		"exercise_name":    resp.ExerciseName,
-	}
-
-	if resp.Structured != nil {
-		response["structured"] = gin.H{
-			"state":            resp.Structured.State,
-			"state_name":       resp.Structured.StateName,
-			"current_cycle":    resp.Structured.Cycle,
-			"total_cycles":     resp.Structured.TotalCycles,
-			"completed":        resp.Structured.Completed,
-			"countdown":        resp.Structured.Countdown,
-			"progress_percent": resp.Structured.Progress,
-			"message":          resp.Structured.Message,
-			"step":             resp.Structured.Step,
-			"step_name":        resp.Structured.StepName,
-		}
-	}
-
-	c.JSON(http.StatusOK, response)
 }
 
 // HandleWebSocket - обработка WebSocket соединений
 func (h *ExerciseHandler) HandleWebSocket(w http.ResponseWriter, r *http.Request, exerciseId string) {
-	log.Printf("WebSocket connection request for exercise: %s", exerciseId)
+	// Получаем user_id из контекста запроса
+	userIDValue := r.Context().Value("user_id")
 
-	log.Printf("=== WEBSOCKET HANDLER ===")
-	log.Printf("Exercise ID: %s", exerciseId)
-	log.Printf("URL: %s", r.URL.String())
-	log.Printf("Token from query: %s", r.URL.Query().Get("token"))
+	if userIDValue == nil {
+		log.Printf("❌ user_id not found in context")
+		http.Error(w, "Unauthorized", http.StatusUnauthorized)
+		return
+	}
 
-	userID := r.Context().Value("user_id")
-	log.Printf("User ID from context: %v", userID)
+	userID, ok := userIDValue.(string)
+	if !ok {
+		log.Printf("❌ user_id is not string, got: %T", userIDValue)
+		http.Error(w, "Unauthorized", http.StatusUnauthorized)
+		return
+	}
+
+	log.Printf("🔌 WebSocket connection from user %s for exercise %s", userID, exerciseId)
 
 	conn, err := upgrader.Upgrade(w, r, nil)
 	if err != nil {
-		log.Println("Failed to upgrade connection:", err)
+		log.Printf("Failed to upgrade connection: %v", err)
 		return
 	}
 
-	err = conn.SetReadDeadline(time.Now().Add(60 * time.Second))
-	if err != nil {
-		return
-	}
-	err = conn.SetWriteDeadline(time.Now().Add(60 * time.Second))
-	if err != nil {
-		return
-	}
+	// Настраиваем таймауты
+	conn.SetReadLimit(h.config.WebSocket.MaxMessageSize)
+	conn.SetReadDeadline(time.Now().Add(h.config.WebSocket.ReadTimeout))
+	conn.SetWriteDeadline(time.Now().Add(h.config.WebSocket.WriteTimeout))
+
 	conn.SetPongHandler(func(string) error {
-		err := conn.SetReadDeadline(time.Now().Add(60 * time.Second))
-		if err != nil {
-			return err
-		}
+		conn.SetReadDeadline(time.Now().Add(h.config.WebSocket.ReadTimeout))
 		return nil
 	})
 
+	// Создаем клиента
 	client := &websocket.Client{
-		Hub:        h.hub,
 		Conn:       conn,
-		Send:       make(chan []byte, 512),
+		Send:       make(chan []byte, 256),
 		ExerciseID: exerciseId,
+		UserID:     userID,
 	}
 
-	client.Hub.Register <- client
-	log.Printf("Client registered for exercise: %s", exerciseId)
+	// Регистрируем клиента
+	if h.hub != nil {
+		h.hub.RegisterClient(client)
+	} else {
+		log.Printf("⚠️ Hub is nil, client not registered")
+	}
 
-	go h.readPump(client)
+	// Создаем сессию
+	sessionID := uuid.New().String()
+	session := &SessionInfo{
+		ID:          sessionID,
+		UserID:      userID,
+		ExerciseID:  exerciseId,
+		StartTime:   time.Now(),
+		LastFrameAt: time.Now(),
+		ServerID:    h.serverID,
+	}
+	h.sessions.Store(sessionID, session)
+
+	// Сохраняем сессию в Redis
+	ctx := context.Background()
+	sessionData, _ := json.Marshal(session)
+	h.redisClient.Set(ctx, "session:"+sessionID, sessionData, 1*time.Hour)
+	h.redisClient.Set(ctx, "user:"+userID+":session", sessionID, 1*time.Hour)
+
+	// Запускаем горутины
+	go h.readPump(client, sessionID)
 	go h.writePump(client)
 }
 
 // readPump - чтение сообщений от клиента
-func (h *ExerciseHandler) readPump(client *websocket.Client) {
+func (h *ExerciseHandler) readPump(client *websocket.Client, sessionID string) {
 	defer func() {
-		log.Printf("readPump exiting for client: %s", client.ExerciseID)
-		client.Hub.Unregister <- client
-		err := client.Conn.Close()
-		if err != nil {
-			return
-		}
+		log.Printf("readPump exiting for user %s", client.UserID)
+		h.hub.UnregisterClient(client)
+		client.Conn.Close()
+		h.sessions.Delete(sessionID)
+		h.redisClient.Del(context.Background(), "session:"+sessionID)
 	}()
-
-	client.Conn.SetReadLimit(10 * 1024 * 1024)
 
 	for {
 		_, message, err := client.Conn.ReadMessage()
 		if err != nil {
 			if gorilla.IsUnexpectedCloseError(err, gorilla.CloseGoingAway, gorilla.CloseAbnormalClosure) {
-				log.Printf("readPump error for %s: %v", client.ExerciseID, err)
+				log.Printf("readPump error for user %s: %v", client.UserID, err)
 			}
 			break
 		}
 
-		log.Printf("Received message from client %s, size: %d bytes", client.ExerciseID, len(message))
-
-		var clientMsg map[string]interface{}
-		if err := json.Unmarshal(message, &clientMsg); err != nil {
-			log.Printf("Error parsing client message: %v", err)
-			continue
+		// Обновляем сессию
+		if session, ok := h.getSession(sessionID); ok {
+			session.LastFrameAt = time.Now()
+			session.FrameCount++
+			h.sessions.Store(sessionID, session)
 		}
 
-		if reset, ok := clientMsg["reset_for_new_attempt"]; ok && reset == true {
-			log.Printf("🔄 Получен запрос на сброс упражнения через WebSocket")
-
-			resetRequest := map[string]interface{}{
-				"exercise_type":         client.ExerciseID,
-				"reset_for_new_attempt": true,
-			}
-
-			feedback, err := h.processFrameWithReset(resetRequest)
-			if err != nil {
-				log.Printf("Error processing reset: %v", err)
-			} else {
-				feedbackJSON, _ := json.Marshal(feedback)
-				select {
-				case client.Send <- feedbackJSON:
-					log.Printf("Reset confirmation sent to client")
-				default:
-				}
-			}
-			continue
-		}
-
-		feedback, err := h.processFrame(string(message))
-		if err != nil {
-			log.Printf("Error processing frame for %s: %v", client.ExerciseID, err)
-			errorMsg := map[string]interface{}{
-				"status":  "error",
-				"message": err.Error(),
-			}
-			errorJSON, _ := json.Marshal(errorMsg)
-			select {
-			case client.Send <- errorJSON:
-			default:
-				log.Printf("Client %s send buffer full", client.ExerciseID)
-			}
-			continue
-		}
-
-		feedbackJSON, _ := json.Marshal(feedback)
-
-		select {
-		case client.Send <- feedbackJSON:
-			log.Printf("Feedback sent to client %s, size: %d bytes, structured=%v",
-				client.ExerciseID, len(feedbackJSON), feedback.Structured != nil)
-		default:
-			log.Printf("Client %s send buffer full", client.ExerciseID)
-		}
+		// Обрабатываем сообщение
+		go h.processClientMessage(client, sessionID, message)
 	}
 }
 
-// processFrameWithReset - обработка сброса
-func (h *ExerciseHandler) processFrameWithReset(request map[string]interface{}) (*models.FrameFeedback, error) {
-	log.Printf("🔄 Отправка команды сброса в Python")
+// processClientMessage - обработка сообщения от клиента
+func (h *ExerciseHandler) processClientMessage(client *websocket.Client, sessionID string, message []byte) {
+	log.Printf("📥 Received message from user %s, size: %d bytes", client.UserID, len(message))
 
-	resp, err := h.pythonClient.ProcessFrame(request)
-	if err != nil {
-		log.Printf("❌ Ошибка Python при сбросе: %v", err)
-		return nil, err
+	var clientMsg map[string]interface{}
+	if err := json.Unmarshal(message, &clientMsg); err != nil {
+		log.Printf("❌ Error parsing client message: %v", err)
+		return
 	}
 
-	var structured *models.StructuredData
-	if resp.Structured != nil {
-		structured = &models.StructuredData{
-			State:       resp.Structured.State,
-			StateName:   resp.Structured.StateName,
-			Countdown:   resp.Structured.Countdown,
-			Progress:    resp.Structured.Progress,
-			Cycle:       resp.Structured.Cycle,
-			TotalCycles: resp.Structured.TotalCycles,
-			Status:      resp.Structured.Status,
-			Completed:   resp.Structured.Completed,
-			Message:     resp.Structured.Message,
-			Step:        resp.Structured.Step,
-			StepName:    resp.Structured.StepName,
+	ctx := context.Background()
+
+	// Проверяем запрос на сброс
+	if reset, ok := clientMsg["reset_for_new_attempt"]; ok && reset == true {
+		log.Printf("🔄 Reset request from user %s", client.UserID)
+		h.handleReset(client, clientMsg)
+		return
+	}
+
+	// Получаем кадр
+	frameData, ok := clientMsg["frame"].(string)
+	if !ok {
+		log.Printf("❌ No frame data in message from user %s", client.UserID)
+		return
+	}
+	log.Printf("📸 Frame received from user %s, base64 length: %d", client.UserID, len(frameData))
+
+	exerciseType := client.ExerciseID
+	if et, ok := clientMsg["exercise_type"]; ok {
+		exerciseType = et.(string)
+	}
+	log.Printf("🏋️ Exercise type: %s", exerciseType)
+
+	// ВАЖНО: Всегда отправляем кадры в Python, кроме случаев когда это явно запрос состояния
+	// Проверяем, есть ли флаг, что это запрос только состояния
+	if _, isStateOnly := clientMsg["get_state_only"]; isStateOnly {
+		// Проверяем кэш состояния только для явных запросов состояния
+		cacheKey := fmt.Sprintf("exercise_state:%s:%s", client.UserID, exerciseType)
+		if cached, err := h.redisClient.Get(ctx, cacheKey); err == nil && cached != "" {
+			log.Printf("✅ Sending cached state to user %s", client.UserID)
+			client.Send <- []byte(cached)
+			return
 		}
 	}
 
-	feedback := &models.FrameFeedback{
-		FistDetected:    resp.FistDetected,
-		HandDetected:    resp.HandDetected,
-		RaisedFingers:   resp.RaisedFingers,
-		FingerStates:    resp.FingerStates,
-		Message:         resp.Message,
-		ProcessedFrame:  resp.ProcessedFrame,
-		CurrentExercise: resp.CurrentExercise,
-		ExerciseName:    resp.ExerciseName,
-		Structured:      structured,
-		Timestamp:       time.Now().Unix(),
+	// Отправляем в Python синхронно (ВСЕГДА для кадров)
+	log.Printf("📤 Sending frame to Python processor for user %s", client.UserID)
+	pythonRequest := map[string]interface{}{
+		"frame":         frameData,
+		"exercise_type": exerciseType,
 	}
 
-	log.Printf("📥 Ответ от Python на сброс: status=%s, message='%s'", resp.Status, resp.Message)
+	resp, err := h.pythonClient.ProcessFrame(ctx, pythonRequest)
+	if err != nil {
+		log.Printf("❌ Failed to process frame: %v", err)
+		errorMsg := map[string]interface{}{
+			"status":  "error",
+			"message": "Failed to process frame",
+		}
+		errorJSON, _ := json.Marshal(errorMsg)
+		client.Send <- errorJSON
+		return
+	}
 
-	return feedback, nil
+	log.Printf("✅ Received response from Python processor for user %s, status: %s",
+		client.UserID, resp.Status)
+
+	// Кэшируем результат ТОЛЬКО если это не ошибка
+	if resp != nil && resp.Status == "success" && resp.Structured != nil {
+		log.Printf("📊 Exercise state for user %s: cycle=%d, completed=%v",
+			client.UserID, resp.Structured.Cycle, resp.Structured.Completed)
+		cacheKey := fmt.Sprintf("exercise_state:%s:%s", client.UserID, exerciseType)
+		cacheData, _ := json.Marshal(resp)
+		h.redisClient.Set(ctx, cacheKey, cacheData, h.config.Cache.ExerciseStateTTL)
+	}
+
+	// Отправляем результат клиенту
+	feedbackJSON, _ := json.Marshal(resp)
+	client.Send <- feedbackJSON
+	log.Printf("📤 Sent feedback to user %s, size: %d bytes", client.UserID, len(feedbackJSON))
+
+	// Если упражнение завершено, сохраняем статистику
+	if resp != nil && resp.Structured != nil && resp.Structured.Completed {
+		log.Printf("🎯 Exercise completed for user %s", client.UserID)
+		go h.saveExerciseStats(client.UserID, sessionID, exerciseType, resp)
+	}
+}
+
+// handleReset - обработка сброса упражнения
+func (h *ExerciseHandler) handleReset(client *websocket.Client, clientMsg map[string]interface{}) {
+	log.Printf("🔄 Processing reset for user %s", client.UserID)
+
+	ctx := context.Background()
+
+	// Очищаем кэш
+	cacheKey := fmt.Sprintf("exercise_state:%s:%s", client.UserID, client.ExerciseID)
+	h.redisClient.Del(ctx, cacheKey)
+
+	// Отправляем запрос в Python
+	resetRequest := map[string]interface{}{
+		"exercise_type":         client.ExerciseID,
+		"reset_for_new_attempt": true,
+	}
+
+	resp, err := h.pythonClient.ProcessFrame(ctx, resetRequest)
+	if err != nil {
+		log.Printf("Failed to reset exercise: %v", err)
+		return
+	}
+
+	feedbackJSON, _ := json.Marshal(resp)
+	client.Send <- feedbackJSON
 }
 
 // writePump - отправка сообщений клиенту
 func (h *ExerciseHandler) writePump(client *websocket.Client) {
-	ticker := time.NewTicker(30 * time.Second)
+	ticker := time.NewTicker(h.config.WebSocket.PingInterval)
 	defer func() {
-		log.Printf("writePump exiting for client: %s", client.ExerciseID)
 		ticker.Stop()
-		err := client.Conn.Close()
-		if err != nil {
-			return
-		}
+		client.Conn.Close()
 	}()
 
 	for {
 		select {
 		case message, ok := <-client.Send:
 			if !ok {
-				err := client.Conn.WriteMessage(gorilla.CloseMessage, []byte{})
-				if err != nil {
-					return
-				}
+				client.Conn.WriteMessage(gorilla.CloseMessage, []byte{})
 				return
 			}
 
-			err := client.Conn.SetWriteDeadline(time.Now().Add(30 * time.Second))
-			if err != nil {
-				return
-			}
+			client.Conn.SetWriteDeadline(time.Now().Add(h.config.WebSocket.WriteTimeout))
 			if err := client.Conn.WriteMessage(gorilla.TextMessage, message); err != nil {
-				log.Printf("writePump error for %s: %v", client.ExerciseID, err)
+				log.Printf("writePump error for user %s: %v", client.UserID, err)
 				return
 			}
 
 		case <-ticker.C:
-			err := client.Conn.SetWriteDeadline(time.Now().Add(30 * time.Second))
-			if err != nil {
-				return
-			}
+			client.Conn.SetWriteDeadline(time.Now().Add(h.config.WebSocket.WriteTimeout))
 			if err := client.Conn.WriteMessage(gorilla.PingMessage, nil); err != nil {
-				log.Printf("Ping error for %s: %v", client.ExerciseID, err)
 				return
 			}
 		}
 	}
 }
 
-// processFrame - обработка кадра
-func (h *ExerciseHandler) processFrame(messageStr string) (*models.FrameFeedback, error) {
-	log.Printf("📤 Отправка в Python, размер данных: %d байт", len(messageStr))
+// subscribeToUserResults - подписка на результаты обработки
+func (h *ExerciseHandler) subscribeToUserResults(userID string, client *websocket.Client) {
+	// Упрощенная версия без pubsub для начала
+}
 
-	var clientMsg map[string]interface{}
-	if err := json.Unmarshal([]byte(messageStr), &clientMsg); err != nil {
-		log.Printf("❌ Ошибка парсинга сообщения клиента: %v", err)
-		return nil, err
+// getSession - получение сессии
+func (h *ExerciseHandler) getSession(sessionID string) (*SessionInfo, bool) {
+	if val, ok := h.sessions.Load(sessionID); ok {
+		return val.(*SessionInfo), true
+	}
+	return nil, false
+}
+
+// saveExerciseStats - сохранение статистики упражнения
+func (h *ExerciseHandler) saveExerciseStats(userID, sessionID, exerciseType string, feedback *python_bridge.FrameResponse) {
+	log.Printf("Saving stats for user %s, exercise %s", userID, exerciseType)
+}
+
+// GetExerciseState - получение состояния упражнения
+func (h *ExerciseHandler) GetExerciseState(c *gin.Context) {
+	exerciseType := c.Query("type")
+	if exerciseType == "" {
+		exerciseType = "fist-palm"
 	}
 
-	frameData, ok := clientMsg["frame"].(string)
-	if !ok {
-		log.Printf("❌ Нет поля frame в сообщении")
-		return nil, fmt.Errorf("no frame data")
+	userID := c.GetString("user_id")
+	log.Printf("📊 Exercise state request for user %s, exercise %s", userID, exerciseType)
+
+	ctx := context.Background()
+
+	// Проверяем кэш
+	cacheKey := fmt.Sprintf("exercise_state:%s:%s", userID, exerciseType)
+	if cached, err := h.redisClient.Get(ctx, cacheKey); err == nil && cached != "" {
+		c.Data(http.StatusOK, "application/json", []byte(cached))
+		return
 	}
 
-	pythonRequest := map[string]interface{}{
-		"frame": frameData,
+	// Запрашиваем из Python
+	stateRequest := map[string]interface{}{
+		"exercise_type":  exerciseType,
+		"get_state_only": true,
 	}
 
-	if exType, ok := clientMsg["exercise_type"]; ok {
-		pythonRequest["exercise_type"] = exType
-	}
-
-	resp, err := h.pythonClient.ProcessFrame(pythonRequest)
+	resp, err := h.pythonClient.ProcessFrame(ctx, stateRequest)
 	if err != nil {
-		log.Printf("❌ Ошибка Python: %v", err)
-		return nil, err
-	}
-
-	var structured *models.StructuredData
-	if resp.Structured != nil {
-		structured = &models.StructuredData{
-			State:       resp.Structured.State,
-			StateName:   resp.Structured.StateName,
-			Countdown:   resp.Structured.Countdown,
-			Progress:    resp.Structured.Progress,
-			Cycle:       resp.Structured.Cycle,
-			TotalCycles: resp.Structured.TotalCycles,
-			Status:      resp.Structured.Status,
-			Completed:   resp.Structured.Completed,
-			Message:     resp.Structured.Message,
-			Step:        resp.Structured.Step,
-			StepName:    resp.Structured.StepName,
-		}
-		log.Printf("📊 Структурированные данные: состояние=%v, цикл=%d/%d, завершено=%v",
-			resp.Structured.State,
-			resp.Structured.Cycle,
-			resp.Structured.TotalCycles,
-			resp.Structured.Completed)
-	}
-
-	feedback := &models.FrameFeedback{
-		FistDetected:    resp.FistDetected,
-		HandDetected:    resp.HandDetected,
-		RaisedFingers:   resp.RaisedFingers,
-		FingerStates:    resp.FingerStates,
-		Message:         resp.Message,
-		ProcessedFrame:  resp.ProcessedFrame,
-		CurrentExercise: resp.CurrentExercise,
-		ExerciseName:    resp.ExerciseName,
-		Structured:      structured,
-		Timestamp:       time.Now().Unix(),
-	}
-
-	log.Printf("📥 Ответ от Python: status=%s, hand_detected=%v, message='%s', structured=%v",
-		resp.Status, resp.HandDetected, resp.Message, resp.Structured != nil)
-
-	return feedback, nil
-}
-
-// StartExercise - начало упражнения
-func (h *ExerciseHandler) StartExercise(c *gin.Context) {
-	var req models.ExerciseRequest
-	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		log.Printf("Failed to get exercise state: %v", err)
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"error": "Failed to get exercise state",
+		})
 		return
 	}
 
-	session := &models.ExerciseSession{
-		ID:        uuid.New().String(),
-		UserID:    c.GetString("user_id"),
-		Type:      req.ExerciseType,
-		StartTime: time.Now(),
-		IsActive:  true,
-	}
+	// Кэшируем
+	respJSON, _ := json.Marshal(resp)
+	h.redisClient.Set(ctx, cacheKey, respJSON, h.config.Cache.ExerciseStateTTL)
 
-	h.sessions[session.ID] = session
-	log.Printf("Started exercise session: %s", session.ID)
-	c.JSON(http.StatusOK, session)
+	c.JSON(http.StatusOK, resp)
 }
 
-// StopExercise - завершение упражнения
-func (h *ExerciseHandler) StopExercise(c *gin.Context) {
+// ResetExercise - сброс упражнения
+func (h *ExerciseHandler) ResetExercise(c *gin.Context) {
 	var req struct {
-		SessionID string `json:"sessionId" binding:"required"`
+		ExerciseType string `json:"exercise_type" binding:"required"`
 	}
 
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request"})
 		return
 	}
 
-	session, exists := h.sessions[req.SessionID]
-	if !exists {
-		c.JSON(http.StatusNotFound, gin.H{"error": "Session not found"})
+	userID := c.GetString("user_id")
+	log.Printf("🔄 Reset exercise for user %s: %s", userID, req.ExerciseType)
+
+	ctx := context.Background()
+
+	// Очищаем кэш
+	cacheKey := fmt.Sprintf("exercise_state:%s:%s", userID, req.ExerciseType)
+	h.redisClient.Del(ctx, cacheKey)
+
+	// Отправляем в Python
+	resetRequest := map[string]interface{}{
+		"exercise_type":         req.ExerciseType,
+		"reset_for_new_attempt": true,
+	}
+
+	resp, err := h.pythonClient.ProcessFrame(ctx, resetRequest)
+	if err != nil {
+		log.Printf("Failed to reset exercise: %v", err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to reset exercise"})
 		return
 	}
 
-	now := time.Now()
-	session.EndTime = &now
-	session.IsActive = false
+	c.JSON(http.StatusOK, resp)
+}
 
-	log.Printf("Stopped exercise session: %s", session.ID)
-	c.JSON(http.StatusOK, session)
+// GetExerciseListFromDB - список упражнений из БД
+func (h *ExerciseHandler) GetExerciseListFromDB(c *gin.Context) {
+	// Здесь оставляем без изменений - будет реализовано позже
+	c.JSON(http.StatusOK, gin.H{"items": []interface{}{}})
 }

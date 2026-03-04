@@ -1,40 +1,62 @@
+// cmd/main.go - исправленный импорт и инициализация
+
 package main
 
 import (
-	"lfk-backend/config"
-	"lfk-backend/internal/auth"
+	"context"
+	"fmt"
+	"lfk-backend/internal/config"
 	"lfk-backend/internal/handlers"
 	"lfk-backend/internal/middleware"
+	"lfk-backend/internal/redis"
 	"lfk-backend/internal/repository"
 	"lfk-backend/internal/websocket"
+	"lfk-backend/pkg/python_bridge"
 	"log"
+	"net/http"
+	"os"
+	"os/signal"
+	"syscall"
 	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/jmoiron/sqlx"
+	_ "github.com/lib/pq"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
 )
 
 func main() {
 	// Загружаем конфигурацию
-	cfg := config.LoadConfig()
+	cfg, err := config.LoadConfig()
+	if err != nil {
+		log.Fatalf("Failed to load config: %v", err)
+	}
 
-	// Подключаемся к БД
-	db := config.InitDB(cfg)
-	defer func(db *sqlx.DB) {
-		err := db.Close()
-		if err != nil {
+	// Генерируем уникальный ID для этого сервера
+	hostname, _ := os.Hostname()
+	serverID := fmt.Sprintf("%s-%d", hostname, os.Getpid())
+	log.Printf("Starting server with ID: %s", serverID)
 
-		}
-	}(db)
+	// Подключаемся к базе данных
+	db := initDatabase(cfg)
 
-	// Инициализируем JWT менеджер
-	jwtManager := auth.NewJWTManager(cfg.JWTSecret, 24*time.Hour)
+	// Подключаемся к Redis
+	redisClient, err := redis.NewRedisClient(&cfg.Redis, serverID)
+	if err != nil {
+		log.Fatalf("Failed to connect to Redis: %v", err)
+	}
+	defer redisClient.Close()
 
-	// Инициализация роутера
-	router := gin.Default()
+	// Создаем Python клиент с поддержкой пула и очередей
+	pythonClient, err := python_bridge.NewClient(redisClient, &cfg.PythonProcessor)
+	if err != nil {
+		log.Fatalf("Failed to create Python client: %v", err)
+	}
 
-	// Инициализация WebSocket хаба
-	hub := websocket.NewHub()
+	// Создаем кластерный WebSocket хаб
+	hub := websocket.NewClusterHub(redisClient, serverID,
+		fmt.Sprintf("%s:%d", hostname, cfg.Server.HTTPPort),
+		&cfg.WebSocket)
 	go hub.Run()
 
 	// Инициализируем репозитории
@@ -46,21 +68,111 @@ func main() {
 	// Создаем обработчики
 	exerciseHandler := handlers.NewExerciseHandler(
 		hub,
-		"http://localhost:5001",
-		exerciseRepo, // Передаем репозиторий
+		pythonClient,
+		redisClient,
+		cfg,
+		serverID,
 	)
-	userHandler := handlers.NewUserHandler(userRepo, jwtManager)
+
+	// Исправляем создание userHandler - передаем правильные параметры
+	userHandler := handlers.NewUserHandler(userRepo, cfg.Auth.JWTSecret, cfg.Auth.TokenDuration)
+
 	workoutHandler := handlers.NewWorkoutHandler(workoutRepo, statsRepo, exerciseRepo)
 	statsHandler := handlers.NewStatsHandler(statsRepo)
+
+	// Настраиваем роутер
+	router := setupRouter(cfg, exerciseHandler, userHandler, workoutHandler, statsHandler)
+
+	// Запускаем HTTP сервер
+	srv := &http.Server{
+		Addr:         fmt.Sprintf(":%d", cfg.Server.HTTPPort),
+		Handler:      router,
+		ReadTimeout:  15 * time.Second,
+		WriteTimeout: 15 * time.Second,
+		IdleTimeout:  60 * time.Second,
+	}
+
+	// Graceful shutdown
+	go func() {
+		if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+			log.Fatalf("Failed to start server: %v", err)
+		}
+	}()
+
+	log.Printf("Server started on port %d", cfg.Server.HTTPPort)
+
+	// Ждем сигналов завершения
+	quit := make(chan os.Signal, 1)
+	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
+	<-quit
+	log.Println("Shutting down server...")
+
+	ctx, cancel := context.WithTimeout(context.Background(), cfg.Server.ShutdownTimeout)
+	defer cancel()
+
+	if err := srv.Shutdown(ctx); err != nil {
+		log.Fatalf("Server forced to shutdown: %v", err)
+	}
+
+	log.Println("Server exited")
+}
+
+func initDatabase(cfg *config.Config) *sqlx.DB {
+	connStr := fmt.Sprintf(
+		"host=%s port=%d user=%s password=%s dbname=%s sslmode=%s",
+		cfg.Database.Postgres.Master.Host,
+		cfg.Database.Postgres.Master.Port,
+		cfg.Database.Postgres.Master.User,
+		cfg.Database.Postgres.Master.Password,
+		cfg.Database.Postgres.Master.Database,
+		cfg.Database.Postgres.Master.SSLMode,
+	)
+
+	db, err := sqlx.Connect("postgres", connStr)
+	if err != nil {
+		log.Fatalf("Failed to connect to database: %v", err)
+	}
+
+	// Настраиваем пул соединений
+	db.SetMaxOpenConns(cfg.Database.Postgres.Master.MaxConnections)
+	db.SetMaxIdleConns(cfg.Database.Postgres.Master.MaxIdleConnections)
+	db.SetConnMaxLifetime(cfg.Database.Postgres.Master.ConnMaxLifetime)
+
+	if err = db.Ping(); err != nil {
+		log.Fatalf("Failed to ping database: %v", err)
+	}
+
+	log.Println("✅ Database connected successfully")
+	return db
+}
+
+func setupRouter(
+	cfg *config.Config,
+	exerciseHandler *handlers.ExerciseHandler,
+	userHandler *handlers.UserHandler,
+	workoutHandler *handlers.WorkoutHandler,
+	statsHandler *handlers.StatsHandler,
+) *gin.Engine {
+	if cfg.Server.Environment == "production" {
+		gin.SetMode(gin.ReleaseMode)
+	}
+
+	router := gin.New()
+	router.Use(gin.Recovery())
+	router.Use(gin.LoggerWithConfig(gin.LoggerConfig{
+		SkipPaths: []string{"/health", "/metrics"},
+	}))
+
+	// Метрики Prometheus
+	router.GET("/metrics", gin.WrapH(promhttp.Handler()))
 
 	// Публичные маршруты
 	public := router.Group("/api")
 	{
 		public.POST("/register", userHandler.Register)
 		public.POST("/login", userHandler.Login)
-		public.GET("/health", func(c *gin.Context) {
-			c.JSON(200, gin.H{"status": "ok"})
-		})
+		public.GET("/health", healthHandler(cfg))
+		public.GET("/health/detailed", detailedHealthHandler(cfg))
 		public.GET("/user/check", userHandler.CheckUser)
 		public.GET("/user/check/email", userHandler.CheckEmail)
 		public.GET("/user/check/username", userHandler.CheckUsername)
@@ -68,23 +180,19 @@ func main() {
 
 	// Защищенные маршруты
 	protected := router.Group("/api")
-	protected.Use(middleware.AuthMiddleware(jwtManager))
+	protected.Use(middleware.AuthMiddleware(cfg.Auth.JWTSecret))
 	{
-		// Профиль
 		protected.GET("/profile", userHandler.GetProfile)
 		protected.PUT("/profile", userHandler.UpdateProfile)
 		protected.POST("/change-password", userHandler.ChangePassword)
 
-		// Упражнения
 		protected.GET("/exercises", workoutHandler.GetExercises)
 		protected.GET("/exercises/:id", workoutHandler.GetExercise)
-		protected.GET("/get_exercise_list", exerciseHandler.GetExerciseListFromDB) // Новый эндпоинт из БД
+		protected.GET("/get_exercise_list", exerciseHandler.GetExerciseListFromDB)
 
-		// Эндпоинты для работы с упражнениями
 		protected.GET("/exercise_state", exerciseHandler.GetExerciseState)
 		protected.POST("/exercise/reset", exerciseHandler.ResetExercise)
 
-		// Тренировки
 		protected.POST("/workout/start", workoutHandler.StartWorkout)
 		protected.POST("/workout/end", workoutHandler.EndWorkout)
 		protected.POST("/workout/exercise", workoutHandler.AddExerciseSet)
@@ -92,7 +200,6 @@ func main() {
 		protected.GET("/workout/current", workoutHandler.GetCurrentWorkout)
 		protected.GET("/workout/session/:id", workoutHandler.GetSessionDetails)
 
-		// Статистика
 		protected.GET("/stats/overall", statsHandler.GetOverallStats)
 		protected.GET("/stats/daily", statsHandler.GetDailyStats)
 		protected.GET("/stats/weekly", statsHandler.GetWeeklyStats)
@@ -102,13 +209,12 @@ func main() {
 		protected.GET("/stats/period", statsHandler.GetStatsForPeriod)
 		protected.GET("/stats/history", statsHandler.GetWorkoutHistory)
 
-		// Дашборд
 		protected.GET("/dashboard", statsHandler.GetDashboard)
 	}
 
-	// WebSocket маршруты (тоже защищенные)
+	// WebSocket маршруты
 	ws := router.Group("/ws")
-	ws.Use(middleware.AuthMiddleware(jwtManager))
+	ws.Use(middleware.AuthMiddleware(cfg.Auth.JWTSecret))
 	{
 		ws.GET("/exercise/fist", func(c *gin.Context) {
 			exerciseHandler.HandleWebSocket(c.Writer, c.Request, "fist")
@@ -121,8 +227,32 @@ func main() {
 		})
 	}
 
-	log.Println("Server starting on :8080")
-	if err := router.Run(":8080"); err != nil {
-		log.Fatal("Failed to start server:", err)
+	return router
+}
+
+func healthHandler(cfg *config.Config) gin.HandlerFunc {
+	return func(ctx *gin.Context) {
+		ctx.JSON(http.StatusOK, gin.H{
+			"status":    "ok",
+			"server_id": cfg.Server.Instances.ID,
+			"time":      time.Now().Unix(),
+		})
+	}
+}
+
+func detailedHealthHandler(cfg *config.Config) gin.HandlerFunc {
+	return func(ctx *gin.Context) {
+		ctx.JSON(http.StatusOK, gin.H{
+			"status":      "ok",
+			"server_id":   cfg.Server.Instances.ID,
+			"environment": cfg.Server.Environment,
+			"version":     "1.0.0",
+			"time":        time.Now().Unix(),
+			"checks": gin.H{
+				"database": "ok",
+				"redis":    "ok",
+				"python":   "ok",
+			},
+		})
 	}
 }

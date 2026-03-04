@@ -93,6 +93,25 @@ psql -d lfkdg -f database/migrations.sql
 
 > ⚠️ **Важно**: После создания БД отредактируйте `config/config.go` — укажите свои данные для подключения.
 
+#### Redis
+
+```bash
+    # Установка Redis
+    sudo apt update
+    sudo apt install redis-server
+
+    # Запуск Redis
+    sudo systemctl start redis-server
+    sudo systemctl enable redis-server
+
+    # Проверка что Redis работает
+    sudo systemctl status redis-server
+
+    # Проверка подключения
+    redis-cli ping
+    # Должно вернуть: PONG
+```
+
 #### 2️⃣ Запуск Go сервера
 
 ```bash
