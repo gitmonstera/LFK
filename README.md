@@ -40,7 +40,29 @@
 ## 📱 Интерфейс приложения
 
 <div align="center">
-  <img src="resours/center_logo.svg" alt="LFK Logo" width="200"/>
+  
+### 🔐 Вход и регистрация
+  
+| Экран входа | Регистрация |
+|:------------:|:-----------:|
+| <img src="resours/screen/LoginScreen.jpg" width="200"/> | <img src="resours/screen/RegisterScreen.jpg" width="200"/> |
+
+### 🏠 Главное меню и профиль
+
+| Главный экран | Профиль пользователя |
+|:-------------:|:--------------------:|
+| <img src="resours/screen/MainMenuScreen.jpg" width="200"/> | <img src="resours/screen/ProfileScreen.jpg" width="200"/> |
+
+### 📊 Статистика тренировок
+
+| Общая статистика | Дневная статистика | Недельная статистика |
+|:----------------:|:-------------------:|:--------------------:|
+| <img src="resours/screen/StatsScreen1.jpg" width="200"/> | <img src="resours/screen/StatsScreen2.jpg" width="200"/> | <img src="resours/screen/StatsScreen3.jpg" width="200"/> |
+
+| Месячная статистика | Упражнения | История |
+|:--------------:|:--------:|:------:|
+| <img src="resours/screen/StatsScreen4.jpg" width="200"/> | <img src="resours/screen/StatsScreen5.jpg" width="200"/> | <img src="resours/screen/StatsScreen6.jpg" width="200"/> |
+
 </div>
 
 ---
