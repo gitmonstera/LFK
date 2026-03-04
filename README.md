@@ -39,7 +39,9 @@
 
 ## 📱 Интерфейс приложения
 
-потом будет пример интерфейса 
+<div align="center">
+  <img src="resours/center_logo.svg" alt="LFK Logo" width="200"/>
+</div>
 
 ---
 
