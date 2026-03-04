@@ -1,6 +1,7 @@
 package com.example.lfk.api
 
 import android.util.Base64
+import android.util.Log
 import com.example.lfk.models.WebSocketResponse
 import com.google.gson.Gson
 import kotlinx.coroutines.*
@@ -9,91 +10,94 @@ import kotlinx.coroutines.flow.asSharedFlow
 import okhttp3.*
 import okhttp3.WebSocket
 import okhttp3.WebSocketListener
-import java.io.IOException
 import java.util.concurrent.TimeUnit
 
-/**
- * Менеджер WebSocket соединений для реального времени
- * Отвечает за отправку кадров и получение обработанных изображений
- */
 class WebSocketManager {
-    // HTTP клиент для WebSocket
     private val client = OkHttpClient.Builder()
         .connectTimeout(10, TimeUnit.SECONDS)
         .writeTimeout(10, TimeUnit.SECONDS)
-        .readTimeout(30, TimeUnit.SECONDS)
+        .readTimeout(0, TimeUnit.SECONDS)
+        .pingInterval(15, TimeUnit.SECONDS)
         .build()
 
     private var webSocket: WebSocket? = null
     private val gson = Gson()
-
-    // Поток сообщений от сервера
-    private val _messages = MutableSharedFlow<WebSocketResponse>()
+    private val _messages = MutableSharedFlow<WebSocketResponse>(extraBufferCapacity = 50)
     val messages = _messages.asSharedFlow()
 
     private var isConnected = false
     private val scope = CoroutineScope(Dispatchers.IO + SupervisorJob())
 
-    /**
-     * Подключение к WebSocket серверу
-     */
-    fun connect(url: String, token: String) {
+    fun connect(url: String) {
+        disconnect()
+
+        Log.d("WebSocketManager", "Connecting to: $url")
+
         val request = Request.Builder()
-            .url("$url?token=$token")  // Токен в query параметре
+            .url(url)
             .build()
 
         webSocket = client.newWebSocket(request, object : WebSocketListener() {
             override fun onOpen(webSocket: WebSocket, response: Response) {
                 isConnected = true
-                println("WebSocket opened")
+                Log.d("WebSocketManager", "✅ WebSocket opened")
             }
 
             override fun onMessage(webSocket: WebSocket, text: String) {
                 try {
-                    // Парсим JSON ответ
+                    Log.d("WebSocketManager", "📩 Received: ${text.length} chars")
                     val response = gson.fromJson(text, WebSocketResponse::class.java)
                     scope.launch {
-                        _messages.emit(response)  // Отправляем в Flow
+                        _messages.emit(response)
                     }
                 } catch (e: Exception) {
-                    println("Error parsing message: ${e.message}")
+                    Log.e("WebSocketManager", "Error parsing: ${e.message}")
                 }
             }
 
             override fun onClosing(webSocket: WebSocket, code: Int, reason: String) {
+                Log.d("WebSocketManager", "Closing: $reason")
                 isConnected = false
-                webSocket.close(1000, null)
-                println("WebSocket closing: $reason")
+            }
+
+            override fun onClosed(webSocket: WebSocket, code: Int, reason: String) {
+                Log.d("WebSocketManager", "Closed: $reason")
+                isConnected = false
             }
 
             override fun onFailure(webSocket: WebSocket, t: Throwable, response: Response?) {
+                Log.e("WebSocketManager", "Failure: ${t.message}")
+                t.printStackTrace()
                 isConnected = false
-                println("WebSocket failure: ${t.message}")
             }
         })
     }
 
-    /**
-     * Отправка кадра на сервер
-     */
     fun sendFrame(frameBytes: ByteArray, exerciseType: String) {
-        if (!isConnected) return
+        if (!isConnected) {
+            Log.e("WebSocketManager", "❌ НЕТ ПОДКЛЮЧЕНИЯ!")
+            return
+        }
 
-        // Конвертируем JPEG в Base64
-        val base64Frame = Base64.encodeToString(frameBytes, Base64.DEFAULT)
-        val message = mapOf(
-            "frame" to base64Frame,
-            "exercise_type" to exerciseType
-        )
+        try {
+            val base64Frame = Base64.encodeToString(frameBytes, Base64.NO_WRAP)
+            val message = mapOf(
+                "frame" to base64Frame,
+                "exercise_type" to exerciseType
+            )
+            val jsonMessage = gson.toJson(message)
 
-        webSocket?.send(gson.toJson(message))
+            Log.d("WebSocketManager", "📤 Отправка: ${frameBytes.size} байт")
+
+            webSocket?.send(jsonMessage)
+
+        } catch (e: Exception) {
+            Log.e("WebSocketManager", "❌ Ошибка отправки: ${e.message}")
+        }
     }
 
-    /**
-     * Отключение от WebSocket
-     */
     fun disconnect() {
-        webSocket?.close(1000, "Closing connection")
+        webSocket?.close(1000, "Closing")
         webSocket = null
         isConnected = false
     }
