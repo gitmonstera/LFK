@@ -21,6 +21,13 @@ val WarningOrange = Color(0xFFFF9800)
 val ErrorRed = Color(0xFFF44336)
 val InfoBlue = Color(0xFF2196F3)
 
+// Цвета для темной темы
+val DarkSurface = Color(0xFF1E1E1E)
+val DarkBackground = Color(0xFF121212)
+val DarkTextPrimary = Color.White
+val DarkTextSecondary = Color.LightGray
+val DarkSurfaceVariant = Color(0xFF2D2D2D)
+
 private val LightColorScheme = lightColorScheme(
     primary = PrimaryBlue,
     onPrimary = Color.White,
@@ -55,34 +62,34 @@ private val LightColorScheme = lightColorScheme(
 
 private val DarkColorScheme = darkColorScheme(
     primary = PrimaryBlue,
-    onPrimary = Color.White,
+    onPrimary = Color.Black,  // Черный текст на синем фоне для контраста
     primaryContainer = PrimaryBlue.copy(alpha = 0.2f),
-    onPrimaryContainer = PrimaryBlue.copy(alpha = 0.8f),
+    onPrimaryContainer = PrimaryBlue.copy(alpha = 0.9f), // Ярче для читаемости
 
     secondary = PrimaryPurple,
-    onSecondary = Color.White,
+    onSecondary = Color.Black,  // Черный текст на фиолетовом фоне
     secondaryContainer = PrimaryPurple.copy(alpha = 0.2f),
-    onSecondaryContainer = PrimaryPurple.copy(alpha = 0.8f),
+    onSecondaryContainer = PrimaryPurple.copy(alpha = 0.9f),
 
     tertiary = SuccessGreen,
-    onTertiary = Color.White,
+    onTertiary = Color.Black,  // Черный текст на зеленом фоне
     tertiaryContainer = SuccessGreen.copy(alpha = 0.2f),
-    onTertiaryContainer = SuccessGreen.copy(alpha = 0.8f),
+    onTertiaryContainer = SuccessGreen.copy(alpha = 0.9f),
 
-    background = Color(0xFF121212),
-    onBackground = Color.White,
+    background = DarkBackground,
+    onBackground = DarkTextPrimary,  // Белый текст на темном фоне
 
-    surface = Color(0xFF1E1E1E),
-    onSurface = Color.White,
-    surfaceVariant = Color(0xFF2D2D2D),
-    onSurfaceVariant = Color.LightGray,
+    surface = DarkSurface,
+    onSurface = DarkTextPrimary,  // Белый текст на поверхности
+    surfaceVariant = DarkSurfaceVariant,
+    onSurfaceVariant = DarkTextSecondary,  // Светло-серый текст
 
     error = ErrorRed,
-    onError = Color.White,
+    onError = Color.Black,  // Черный текст на красном фоне
     errorContainer = ErrorRed.copy(alpha = 0.2f),
-    onErrorContainer = ErrorRed.copy(alpha = 0.8f),
+    onErrorContainer = ErrorRed.copy(alpha = 0.9f),
 
-    outline = Color.LightGray.copy(alpha = 0.3f)
+    outline = DarkTextSecondary.copy(alpha = 0.5f)
 )
 
 // Наши кастомные Shapes
@@ -179,8 +186,8 @@ val MaterialTheme.info: Color
 
 val MaterialTheme.textPrimary: Color
     @Composable
-    get() = TextPrimary
+    get() = if (isSystemInDarkTheme()) DarkTextPrimary else TextPrimary
 
 val MaterialTheme.textSecondary: Color
     @Composable
-    get() = TextSecondary
+    get() = if (isSystemInDarkTheme()) DarkTextSecondary else TextSecondary
