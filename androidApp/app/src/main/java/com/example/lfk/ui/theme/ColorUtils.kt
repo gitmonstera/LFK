@@ -25,18 +25,18 @@ object ColorUtils {
             "brown" -> Color(0xFF795548)
             "grey", "gray" -> Color(0xFF9E9E9E)
             "blue_grey", "blue_gray" -> Color(0xFF607D8B)
-            else -> Color(0xFF6200EE) // По умолчанию фиолетовый
+            else -> Color(0xFF6200EE)
         }
     }
 
     fun getDifficultyColor(level: Int): Color {
         return when (level) {
-            1 -> Color(0xFF4CAF50) // Зеленый - легкий
-            2 -> Color(0xFF8BC34A) // Светло-зеленый
-            3 -> Color(0xFFFFC107) // Желтый - средний
-            4 -> Color(0xFFFF9800) // Оранжевый
-            5 -> Color(0xFFF44336) // Красный - сложный
-            else -> Color(0xFF9E9E9E) // Серый
+            1 -> Color(0xFF4CAF50)
+            2 -> Color(0xFF8BC34A)
+            3 -> Color(0xFFFFC107)
+            4 -> Color(0xFFFF9800)
+            5 -> Color(0xFFF44336)
+            else -> Color(0xFF9E9E9E)
         }
     }
 
