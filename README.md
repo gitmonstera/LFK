@@ -32,13 +32,12 @@
 
 ### ✨ Возможности
 - 📹 **Анализ движений** в реальном времени через камеру
-- 🗣️ **Голосовые и визуальные подсказки** при неправильном выполнении
+- 🗣️ **Подсказки** при неправильном выполнении
 - 📊 **Отслеживание прогресса** и детальная статистика тренировок
 - 📱 **Мобильное приложение** для Android (Kotlin, Jetpack Compose)
 - 🔄 **WebSocket соединение** для мгновенной обратной связи
 - 🗄️ **PostgreSQL** для хранения истории тренировок
 - ⚡ **Redis** для кэширования и очередей задач
-- 🐳 **Docker & Kubernetes** для масштабирования
 - 📈 **Метрики и мониторинг** производительности
 
 ---
@@ -48,11 +47,7 @@
 <div align="center">
   
 ### 🔐 Вход и регистрация
-<<<<<<< HEAD
 
-=======
-  
->>>>>>> 188a0fda5738ec5d9112a75b884dfb34109fc3ac
 | Экран входа | Регистрация |
 |:------------:|:-----------:|
 | <img src="resours/screen/LoginScreen.jpg" width="200"/> | <img src="resours/screen/RegisterScreen.jpg" width="200"/> |
@@ -69,11 +64,8 @@
 |:----------------:|:-------------------:|:--------------------:|
 | <img src="resours/screen/StatsScreen1.jpg" width="200"/> | <img src="resours/screen/StatsScreen2.jpg" width="200"/> | <img src="resours/screen/StatsScreen3.jpg" width="200"/> |
 
-<<<<<<< HEAD
-| По упражнениям | Прогресс | Детали |
-=======
+
 | Месячная статистика | Упражнения | История |
->>>>>>> 188a0fda5738ec5d9112a75b884dfb34109fc3ac
 |:--------------:|:--------:|:------:|
 | <img src="resours/screen/StatsScreen4.jpg" width="200"/> | <img src="resours/screen/StatsScreen5.jpg" width="200"/> | <img src="resours/screen/StatsScreen6.jpg" width="200"/> |
 
@@ -414,16 +406,6 @@ python test_client.py
 ## 👥 Разработчик
 
 - **Full-stack Developer** - [@gitmonstera](https://github.com/gitmonstera)
-- 📧 **Email**: gitmonstera@example.com
-- 🌐 **Website**: [https://gitmonstera.dev](https://gitmonstera.dev)
-
----
-
-## ⭐ Благодарности
-
-- Всем пользователям и контрибьюторам
-- Команде MediaPipe за отличную библиотеку CV
-- Open Source сообществу
 
 ---
 
