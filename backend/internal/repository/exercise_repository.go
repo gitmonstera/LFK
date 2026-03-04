@@ -46,25 +46,25 @@ func (r *ExerciseRepository) GetExerciseList() ([]models.ExerciseInfo, error) {
 	var exercises []models.ExerciseInfo
 
 	query := `
-		SELECT 
-			e.id,
-			e.name,
-			e.description,
-			COALESCE(c.name, '') as category,
-			COALESCE(e.category_id, 0) as category_id,
-			COALESCE(c.icon, '') as category_icon,
-			COALESCE(c.color, '') as category_color,
-			COALESCE(e.difficulty_level, 0) as difficulty_level,
-			COALESCE(e.target_muscles, '{}') as target_muscles,
-			COALESCE(e.instructions, '{}') as instructions,
-			COALESCE(e.duration_seconds, 0) as duration_seconds,
-			e.image_url,
-			e.video_url
-		FROM exercises e
-		LEFT JOIN exercise_categories c ON e.category_id = c.id
-		WHERE e.is_active = true
-		ORDER BY e.name
-	`
+        SELECT 
+            e.id,
+            e.name,
+            e.description,
+            COALESCE(c.name, '') as category,
+            COALESCE(e.category_id, 0) as category_id,
+            COALESCE(c.icon, '') as category_icon,
+            COALESCE(c.color, '') as category_color,
+            COALESCE(e.difficulty_level, 0) as difficulty_level,
+            COALESCE(e.target_muscles, '{}') as target_muscles,
+            COALESCE(e.instructions, '{}') as instructions,
+            COALESCE(e.duration_seconds, 0) as duration_seconds,
+            e.image_url,
+            e.video_url
+        FROM exercises e
+        LEFT JOIN exercise_categories c ON e.category_id = c.id
+        WHERE e.is_active = true
+        ORDER BY e.name
+    `
 
 	err := r.db.Select(&exercises, query)
 	if err != nil {

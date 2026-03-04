@@ -70,6 +70,7 @@ func main() {
 		hub,
 		pythonClient,
 		redisClient,
+		exerciseRepo,
 		cfg,
 		serverID,
 	)

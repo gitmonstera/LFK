@@ -6,8 +6,10 @@ import (
 	"encoding/json"
 	"fmt"
 	"lfk-backend/internal/config"
+	"lfk-backend/internal/models"
 	_ "lfk-backend/internal/models"
 	"lfk-backend/internal/redis"
+	"lfk-backend/internal/repository"
 	"lfk-backend/internal/websocket"
 	"lfk-backend/pkg/python_bridge"
 	"log"
@@ -32,6 +34,7 @@ type ExerciseHandler struct {
 	hub          *websocket.ClusterHub
 	pythonClient *python_bridge.Client
 	redisClient  *redis.RedisClient
+	exerciseRepo *repository.ExerciseRepository
 	sessions     sync.Map
 	config       *config.Config
 	serverID     string
@@ -54,6 +57,7 @@ func NewExerciseHandler(
 	hub *websocket.ClusterHub,
 	pythonClient *python_bridge.Client,
 	redisClient *redis.RedisClient,
+	exerciseRepo *repository.ExerciseRepository,
 	cfg *config.Config,
 	serverID string,
 ) *ExerciseHandler {
@@ -61,6 +65,7 @@ func NewExerciseHandler(
 		hub:          hub,
 		pythonClient: pythonClient,
 		redisClient:  redisClient,
+		exerciseRepo: exerciseRepo,
 		config:       cfg,
 		serverID:     serverID,
 		stateCache:   &sync.Map{},
@@ -414,6 +419,29 @@ func (h *ExerciseHandler) ResetExercise(c *gin.Context) {
 
 // GetExerciseListFromDB - список упражнений из БД
 func (h *ExerciseHandler) GetExerciseListFromDB(c *gin.Context) {
-	// Здесь оставляем без изменений - будет реализовано позже
-	c.JSON(http.StatusOK, gin.H{"items": []interface{}{}})
+	log.Printf("📋 Fetching exercise list from database")
+
+	// Получаем список упражнений из репозитория
+	exercises, err := h.exerciseRepo.GetExerciseList()
+	if err != nil {
+		log.Printf("❌ Failed to get exercise list: %v", err)
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"error":   "Failed to get exercise list",
+			"details": err.Error(),
+		})
+		return
+	}
+
+	// Если упражнений нет, возвращаем пустой массив
+	if exercises == nil {
+		exercises = []models.ExerciseInfo{}
+	}
+
+	// Формируем ответ в нужном формате
+	response := models.ExerciseListResponse{
+		Items: exercises,
+	}
+
+	log.Printf("✅ Returning %d exercises", len(exercises))
+	c.JSON(http.StatusOK, response)
 }
