@@ -1,4 +1,4 @@
-// internal/handlers/exercise_handler.go
+// Package handlers internal/handlers/exercise_handler.go
 package handlers
 
 import (
@@ -100,11 +100,20 @@ func (h *ExerciseHandler) HandleWebSocket(w http.ResponseWriter, r *http.Request
 
 	// Настраиваем таймауты
 	conn.SetReadLimit(h.config.WebSocket.MaxMessageSize)
-	conn.SetReadDeadline(time.Now().Add(h.config.WebSocket.ReadTimeout))
-	conn.SetWriteDeadline(time.Now().Add(h.config.WebSocket.WriteTimeout))
+	err = conn.SetReadDeadline(time.Now().Add(h.config.WebSocket.ReadTimeout))
+	if err != nil {
+		return
+	}
+	err = conn.SetWriteDeadline(time.Now().Add(h.config.WebSocket.WriteTimeout))
+	if err != nil {
+		return
+	}
 
 	conn.SetPongHandler(func(string) error {
-		conn.SetReadDeadline(time.Now().Add(h.config.WebSocket.ReadTimeout))
+		err := conn.SetReadDeadline(time.Now().Add(h.config.WebSocket.ReadTimeout))
+		if err != nil {
+			return err
+		}
 		return nil
 	})
 
@@ -138,8 +147,14 @@ func (h *ExerciseHandler) HandleWebSocket(w http.ResponseWriter, r *http.Request
 	// Сохраняем сессию в Redis
 	ctx := context.Background()
 	sessionData, _ := json.Marshal(session)
-	h.redisClient.Set(ctx, "session:"+sessionID, sessionData, 1*time.Hour)
-	h.redisClient.Set(ctx, "user:"+userID+":session", sessionID, 1*time.Hour)
+	err = h.redisClient.Set(ctx, "session:"+sessionID, sessionData, 1*time.Hour)
+	if err != nil {
+		return
+	}
+	err = h.redisClient.Set(ctx, "user:"+userID+":session", sessionID, 1*time.Hour)
+	if err != nil {
+		return
+	}
 
 	// Запускаем горутины
 	go h.readPump(client, sessionID)
@@ -151,9 +166,15 @@ func (h *ExerciseHandler) readPump(client *websocket.Client, sessionID string) {
 	defer func() {
 		log.Printf("readPump exiting for user %s", client.UserID)
 		h.hub.UnregisterClient(client)
-		client.Conn.Close()
+		err := client.Conn.Close()
+		if err != nil {
+			return
+		}
 		h.sessions.Delete(sessionID)
-		h.redisClient.Del(context.Background(), "session:"+sessionID)
+		err = h.redisClient.Del(context.Background(), "session:"+sessionID)
+		if err != nil {
+			return
+		}
 	}()
 
 	for {
@@ -173,12 +194,12 @@ func (h *ExerciseHandler) readPump(client *websocket.Client, sessionID string) {
 		}
 
 		// Обрабатываем сообщение
-		go h.processClientMessage(client, sessionID, message)
+		go h.processClientMessage(client, message)
 	}
 }
 
 // processClientMessage - обработка сообщения от клиента
-func (h *ExerciseHandler) processClientMessage(client *websocket.Client, sessionID string, message []byte) {
+func (h *ExerciseHandler) processClientMessage(client *websocket.Client, message []byte) {
 	log.Printf("📥 Received message from user %s, size: %d bytes", client.UserID, len(message))
 
 	var clientMsg map[string]interface{}
@@ -192,7 +213,7 @@ func (h *ExerciseHandler) processClientMessage(client *websocket.Client, session
 	// Проверяем запрос на сброс
 	if reset, ok := clientMsg["reset_for_new_attempt"]; ok && reset == true {
 		log.Printf("🔄 Reset request from user %s", client.UserID)
-		h.handleReset(client, clientMsg)
+		h.handleReset(client)
 		return
 	}
 
@@ -250,7 +271,10 @@ func (h *ExerciseHandler) processClientMessage(client *websocket.Client, session
 			client.UserID, resp.Structured.Cycle, resp.Structured.Completed)
 		cacheKey := fmt.Sprintf("exercise_state:%s:%s", client.UserID, exerciseType)
 		cacheData, _ := json.Marshal(resp)
-		h.redisClient.Set(ctx, cacheKey, cacheData, h.config.Cache.ExerciseStateTTL)
+		err := h.redisClient.Set(ctx, cacheKey, cacheData, h.config.Cache.ExerciseStateTTL)
+		if err != nil {
+			return
+		}
 	}
 
 	// Отправляем результат клиенту
@@ -261,19 +285,22 @@ func (h *ExerciseHandler) processClientMessage(client *websocket.Client, session
 	// Если упражнение завершено, сохраняем статистику
 	if resp != nil && resp.Structured != nil && resp.Structured.Completed {
 		log.Printf("🎯 Exercise completed for user %s", client.UserID)
-		go h.saveExerciseStats(client.UserID, sessionID, exerciseType, resp)
+		go h.saveExerciseStats(client.UserID, exerciseType)
 	}
 }
 
 // handleReset - обработка сброса упражнения
-func (h *ExerciseHandler) handleReset(client *websocket.Client, clientMsg map[string]interface{}) {
+func (h *ExerciseHandler) handleReset(client *websocket.Client) {
 	log.Printf("🔄 Processing reset for user %s", client.UserID)
 
 	ctx := context.Background()
 
 	// Очищаем кэш
 	cacheKey := fmt.Sprintf("exercise_state:%s:%s", client.UserID, client.ExerciseID)
-	h.redisClient.Del(ctx, cacheKey)
+	err := h.redisClient.Del(ctx, cacheKey)
+	if err != nil {
+		return
+	}
 
 	// Отправляем запрос в Python
 	resetRequest := map[string]interface{}{
@@ -296,25 +323,37 @@ func (h *ExerciseHandler) writePump(client *websocket.Client) {
 	ticker := time.NewTicker(h.config.WebSocket.PingInterval)
 	defer func() {
 		ticker.Stop()
-		client.Conn.Close()
+		err := client.Conn.Close()
+		if err != nil {
+			return
+		}
 	}()
 
 	for {
 		select {
 		case message, ok := <-client.Send:
 			if !ok {
-				client.Conn.WriteMessage(gorilla.CloseMessage, []byte{})
+				err := client.Conn.WriteMessage(gorilla.CloseMessage, []byte{})
+				if err != nil {
+					return
+				}
 				return
 			}
 
-			client.Conn.SetWriteDeadline(time.Now().Add(h.config.WebSocket.WriteTimeout))
+			err := client.Conn.SetWriteDeadline(time.Now().Add(h.config.WebSocket.WriteTimeout))
+			if err != nil {
+				return
+			}
 			if err := client.Conn.WriteMessage(gorilla.TextMessage, message); err != nil {
 				log.Printf("writePump error for user %s: %v", client.UserID, err)
 				return
 			}
 
 		case <-ticker.C:
-			client.Conn.SetWriteDeadline(time.Now().Add(h.config.WebSocket.WriteTimeout))
+			err := client.Conn.SetWriteDeadline(time.Now().Add(h.config.WebSocket.WriteTimeout))
+			if err != nil {
+				return
+			}
 			if err := client.Conn.WriteMessage(gorilla.PingMessage, nil); err != nil {
 				return
 			}
@@ -323,7 +362,7 @@ func (h *ExerciseHandler) writePump(client *websocket.Client) {
 }
 
 // subscribeToUserResults - подписка на результаты обработки
-func (h *ExerciseHandler) subscribeToUserResults(userID string, client *websocket.Client) {
+func (h *ExerciseHandler) subscribeToUserResults() {
 	// Упрощенная версия без pubsub для начала
 }
 
@@ -336,7 +375,7 @@ func (h *ExerciseHandler) getSession(sessionID string) (*SessionInfo, bool) {
 }
 
 // saveExerciseStats - сохранение статистики упражнения
-func (h *ExerciseHandler) saveExerciseStats(userID, sessionID, exerciseType string, feedback *python_bridge.FrameResponse) {
+func (h *ExerciseHandler) saveExerciseStats(userID, exerciseType string) {
 	log.Printf("Saving stats for user %s, exercise %s", userID, exerciseType)
 }
 
@@ -376,7 +415,10 @@ func (h *ExerciseHandler) GetExerciseState(c *gin.Context) {
 
 	// Кэшируем
 	respJSON, _ := json.Marshal(resp)
-	h.redisClient.Set(ctx, cacheKey, respJSON, h.config.Cache.ExerciseStateTTL)
+	err = h.redisClient.Set(ctx, cacheKey, respJSON, h.config.Cache.ExerciseStateTTL)
+	if err != nil {
+		return
+	}
 
 	c.JSON(http.StatusOK, resp)
 }
@@ -399,7 +441,10 @@ func (h *ExerciseHandler) ResetExercise(c *gin.Context) {
 
 	// Очищаем кэш
 	cacheKey := fmt.Sprintf("exercise_state:%s:%s", userID, req.ExerciseType)
-	h.redisClient.Del(ctx, cacheKey)
+	err := h.redisClient.Del(ctx, cacheKey)
+	if err != nil {
+		return
+	}
 
 	// Отправляем в Python
 	resetRequest := map[string]interface{}{

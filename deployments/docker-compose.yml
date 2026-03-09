@@ -1,0 +1,176 @@
+version: '3.8'
+
+# Тома для хранения данных (ОБЪЯВЛЯЕМ ОДИН РАЗ!)
+volumes:
+  postgres_data:
+    name: lfk_postgres_data
+  redis_data:
+    name: lfk_redis_data
+  pgadmin_data:
+    name: lfk_pgadmin_data
+
+# Сеть для контейнеров (ОДИН РАЗ!)
+networks:
+  lfk-network:
+    name: lfk_network
+    driver: bridge
+
+# Сервисы
+services:
+  # --- PostgreSQL ---
+  postgres:
+    image: postgres:15-alpine
+    container_name: lfk-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: lfkdb
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: 123456
+      POSTGRES_INITDB_ARGS: "--encoding=UTF-8"
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ../backend/migrations/init.sql:/docker-entrypoint-initdb.d/init.sql
+    networks:
+      - lfk-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d lfkdb"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
+  # --- Redis ---
+  redis:
+    image: redis:7-alpine
+    container_name: lfk-redis
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    networks:
+      - lfk-network
+    command: redis-server --appendonly yes --save 60 1
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # --- Python Processor ---
+  python-processor:
+    build:
+      context: ..
+      dockerfile: deployments/docker/python/Dockerfile
+    container_name: lfk-python
+    restart: unless-stopped
+    ports:
+      - "5001:5001"
+    volumes:
+      # Монтируем код для разработки (чтобы не пересобирать)
+      - ../python_processor:/app
+      # Монтируем папку для отладочных кадров
+      - ../python_processor/debug_frames:/app/debug_frames
+    environment:
+      - PYTHONUNBUFFERED=1
+      - TZ=Europe/Moscow
+    networks:
+      - lfk-network
+    depends_on:
+      redis:
+        condition: service_healthy
+    deploy:
+      resources:
+        limits:
+          memory: 2G
+        reservations:
+          memory: 1G
+
+  # --- Go Server ---
+  go-server:
+    build:
+      context: ..
+      dockerfile: deployments/docker/go/Dockerfile
+    container_name: lfk-go
+    restart: unless-stopped
+    ports:
+      - "8080:8080"
+    volumes:
+      # Монтируем конфиги (чтобы менять без пересборки)
+      - ../backend/configs:/app/configs
+    environment:
+      # Database
+      - DB_HOST=postgres
+      - DB_PORT=5432
+      - DB_USER=postgres
+      - DB_PASSWORD=123456
+      - DB_NAME=lfkdb
+      - DB_SSLMODE=disable
+
+      # Redis
+      - REDIS_ADDR=redis:6379
+      - REDIS_PASSWORD=
+      - REDIS_DB=0
+
+      # Python Processor
+      - PYTHON_PROCESSOR_URL=http://python-processor:5001
+
+      # JWT
+      - JWT_SECRET=your-super-secret-jwt-key-change-in-production
+      - JWT_TOKEN_DURATION=24h
+
+      # Server
+      - SERVER_PORT=8080
+      - GIN_MODE=release
+    networks:
+      - lfk-network
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      python-processor:
+        condition: service_started
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:8080/api/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 20s
+
+  # --- Adminer (для удобного просмотра БД) ---
+  adminer:
+    image: adminer:latest
+    container_name: lfk-adminer
+    restart: unless-stopped
+    ports:
+      - "8081:8080"
+    networks:
+      - lfk-network
+    depends_on:
+      - postgres
+    environment:
+      - ADMINER_DEFAULT_SERVER=postgres
+      - ADMINER_DESIGN=nette
+
+  # --- pgAdmin (альтернатива Adminer, если нужно) ---
+  pgadmin:
+    image: dpage/pgadmin4:latest
+    container_name: lfk-pgadmin
+    restart: unless-stopped
+    ports:
+      - "8082:80"
+    networks:
+      - lfk-network
+    depends_on:
+      - postgres
+    environment:
+      - PGADMIN_DEFAULT_EMAIL=admin@lfk.com
+      - PGADMIN_DEFAULT_PASSWORD=admin
+      - PGADMIN_CONFIG_SERVER_MODE=False
+    volumes:
+      - pgadmin_data:/var/lib/pgadmin
+    profiles:
+      - tools
