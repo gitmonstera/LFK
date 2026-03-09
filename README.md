@@ -129,6 +129,24 @@ docker-compose up -d
 docker-compose ps
 ```
 
+```bash
+# Скачать официальный скрипт Docker
+curl -fsSL https://get.docker.com -o get-docker.sh
+
+# Запустить установку
+sudo sh get-docker.sh
+
+# Добавить пользователя в группу docker (чтобы не писать sudo)
+sudo usermod -aG docker $USER
+
+# Выйти и зайти заново (или выполнить:)
+newgrp docker
+
+# Проверить установку
+docker --version
+docker compose version  # или docker-compose --version
+```
+
 ### 🔧 Ручная установка
 
 #### 1️⃣ Настройка базы данных
