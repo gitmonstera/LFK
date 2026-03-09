@@ -86,7 +86,7 @@ interface ApiService {
 
 object ApiClient {
     // IP вашего компьютера в локальной сети
-    private const val BASE_URL = "http://192.168.0.143:8080/"
+    private const val BASE_URL = "http://172.20.10.3:8080/"
 
     private val logging = HttpLoggingInterceptor().apply {
         level = HttpLoggingInterceptor.Level.BODY

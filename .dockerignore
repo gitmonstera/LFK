@@ -1,0 +1,42 @@
+# Системные файлы
+.git
+.gitignore
+README.md
+LICENSE
+*.md
+
+# Временные файлы
+*.log
+*.tmp
+*.cache
+*.pid
+*.swp
+*.swo
+
+# Зависимости (будут установлены внутри контейнера)
+backend/vendor/
+python_processor/venv/
+python_processor/__pycache__/
+python_processor/*.pyc
+python_processor/.pytest_cache/
+
+# Конфиги с секретами
+.env
+.env.local
+*.env
+configs/config.local.yaml
+configs/config.dev.yaml
+
+# IDE
+.idea/
+.vscode/
+.vs/
+
+# Docker файлы (чтобы не копировать их внутрь)
+docker-compose*.yml
+Dockerfile*
+.dockerignore
+deployments/
+
+# Временные файлы Python
+python_processor/debug_frames/
