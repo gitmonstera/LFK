@@ -9,11 +9,19 @@ import numpy as np
 import requests
 import websocket
 
+# ==================== НАСТРОЙКИ ====================
+# Меняй только здесь!
+SERVER_IP = "localhost"  # IP адрес сервера
+SERVER_PORT = "8080"          # порт сервера
+
+# Собираем URL из настроек
+BASE_URL = f"http://{SERVER_IP}:{SERVER_PORT}"
+WS_BASE_URL = f"ws://{SERVER_IP}:{SERVER_PORT}"
 
 EXERCISE_URLS = {
-    '1': "ws://localhost:8080/ws/exercise/fist",        
-    '2': "ws://localhost:8080/ws/exercise/fist-index",  
-    '3': "ws://localhost:8080/ws/exercise/fist-palm",   
+    '1': f"{WS_BASE_URL}/ws/exercise/fist",
+    '2': f"{WS_BASE_URL}/ws/exercise/fist-index",
+    '3': f"{WS_BASE_URL}/ws/exercise/fist-palm",
 }
 
 EXERCISE_NAMES = {
@@ -28,6 +36,17 @@ EXERCISE_TYPES = {
     '3': 'fist-palm',
 }
 
+# Таймауты (в секундах)
+CONNECTION_TIMEOUT = 10
+REQUEST_TIMEOUT = 5
+WS_TIMEOUT = 0.5
+
+# Настройки камеры
+FRAME_WIDTH = 640
+FRAME_HEIGHT = 480
+JPEG_QUALITY = 50
+FRAME_SKIP = 3  # отправлять каждый 3-й кадр
+# ===================================================
 
 auth_token = None
 user_info = None
@@ -109,9 +128,9 @@ def login():
 
     try:
         response = requests.post(
-            "http://localhost:8080/api/login",
+            f"{BASE_URL}/api/login",
             json={"email": email, "password": password},
-            timeout=5
+            timeout=REQUEST_TIMEOUT
         )
 
         if response.status_code == 200:
@@ -128,7 +147,7 @@ def login():
             return False
 
     except requests.exceptions.ConnectionError:
-        print(f"\n{Colors.RED}❌ Не удалось подключиться к серверу. Убедитесь, что сервер запущен.{Colors.END}")
+        print(f"\n{Colors.RED}❌ Не удалось подключиться к серверу {BASE_URL}. Убедитесь, что сервер запущен.{Colors.END}")
         input("\nНажмите Enter для продолжения...")
         return False
     except Exception as e:
@@ -159,9 +178,9 @@ def register():
 
     try:
         response = requests.post(
-            "http://localhost:8080/api/register",
+            f"{BASE_URL}/api/register",
             json=data,
-            timeout=5
+            timeout=REQUEST_TIMEOUT
         )
 
         if response.status_code == 201:
@@ -175,7 +194,7 @@ def register():
             return False
 
     except requests.exceptions.ConnectionError:
-        print(f"\n{Colors.RED}❌ Не удалось подключиться к серверу. Убедитесь, что сервер запущен.{Colors.END}")
+        print(f"\n{Colors.RED}❌ Не удалось подключиться к серверу {BASE_URL}. Убедитесь, что сервер запущен.{Colors.END}")
         input("\nНажмите Enter для продолжения...")
         return False
     except Exception as e:
@@ -193,9 +212,9 @@ def get_profile():
 
     try:
         response = requests.get(
-            "http://localhost:8080/api/profile",
+            f"{BASE_URL}/api/profile",
             headers={"Authorization": f"Bearer {auth_token}"},
-            timeout=5
+            timeout=REQUEST_TIMEOUT
         )
 
         if response.status_code == 200:
@@ -218,17 +237,15 @@ def get_profile():
         print(f"{Colors.RED}❌ Ошибка: {e}{Colors.END}")
         input("\nНажмите Enter для продолжения...")
 
-
-
 def start_workout():
     """Начать новую тренировку"""
     global auth_token
     headers = {"Authorization": f"Bearer {auth_token}"}
     try:
         response = requests.post(
-            "http://localhost:8080/api/workout/start",
+            f"{BASE_URL}/api/workout/start",
             headers=headers,
-            timeout=5
+            timeout=REQUEST_TIMEOUT
         )
         if response.status_code == 200:
             data = response.json()
@@ -256,10 +273,10 @@ def add_exercise_set(session_id, exercise_id, repetitions, duration, accuracy):
 
     try:
         response = requests.post(
-            "http://localhost:8080/api/workout/exercise",
+            f"{BASE_URL}/api/workout/exercise",
             headers=headers,
             json=data,
-            timeout=5
+            timeout=REQUEST_TIMEOUT
         )
 
         if response.status_code == 200:
@@ -280,10 +297,10 @@ def end_workout(session_id):
     data = {"session_id": session_id}
     try:
         response = requests.post(
-            "http://localhost:8080/api/workout/end",
+            f"{BASE_URL}/api/workout/end",
             headers=headers,
             json=data,
-            timeout=5
+            timeout=REQUEST_TIMEOUT
         )
         if response.status_code == 200:
             return True
@@ -291,8 +308,6 @@ def end_workout(session_id):
             return False
     except Exception as e:
         return False
-
-
 
 def get_overall_stats():
     """Получение общей статистики"""
@@ -303,9 +318,9 @@ def get_overall_stats():
 
     try:
         response = requests.get(
-            "http://localhost:8080/api/stats/overall",
+            f"{BASE_URL}/api/stats/overall",
             headers={"Authorization": f"Bearer {auth_token}"},
-            timeout=5
+            timeout=REQUEST_TIMEOUT
         )
 
         if response.status_code == 200:
@@ -355,9 +370,9 @@ def get_daily_stats():
     try:
         today = datetime.now().strftime("%Y-%m-%d")
         response = requests.get(
-            f"http://localhost:8080/api/stats/daily?date={today}",
+            f"{BASE_URL}/api/stats/daily?date={today}",
             headers={"Authorization": f"Bearer {auth_token}"},
-            timeout=5
+            timeout=REQUEST_TIMEOUT
         )
 
         if response.status_code == 200:
@@ -397,9 +412,9 @@ def get_weekly_stats():
 
     try:
         response = requests.get(
-            "http://localhost:8080/api/stats/weekly",
+            f"{BASE_URL}/api/stats/weekly",
             headers={"Authorization": f"Bearer {auth_token}"},
-            timeout=5
+            timeout=REQUEST_TIMEOUT
         )
 
         if response.status_code == 200:
@@ -460,9 +475,9 @@ def get_monthly_stats():
 
     try:
         response = requests.get(
-            "http://localhost:8080/api/stats/monthly",
+            f"{BASE_URL}/api/stats/monthly",
             headers={"Authorization": f"Bearer {auth_token}"},
-            timeout=5
+            timeout=REQUEST_TIMEOUT
         )
 
         if response.status_code == 200:
@@ -473,7 +488,6 @@ def get_monthly_stats():
             if not stats:
                 print("Нет данных за месяц")
             else:
-                
                 weeks = {}
                 for day in stats:
                     date = day.get('stat_date', '')
@@ -521,9 +535,9 @@ def get_exercise_stats():
 
     try:
         response = requests.get(
-            "http://localhost:8080/api/stats/exercises",
+            f"{BASE_URL}/api/stats/exercises",
             headers={"Authorization": f"Bearer {auth_token}"},
-            timeout=5
+            timeout=REQUEST_TIMEOUT
         )
 
         if response.status_code == 200:
@@ -573,9 +587,9 @@ def get_workout_history():
 
     try:
         response = requests.get(
-            "http://localhost:8080/api/workout/history",
+            f"{BASE_URL}/api/workout/history",
             headers={"Authorization": f"Bearer {auth_token}"},
-            timeout=5
+            timeout=REQUEST_TIMEOUT
         )
 
         if response.status_code == 200:
@@ -605,7 +619,6 @@ def get_workout_history():
                     print(f"   Упражнений: {exercises}, Повторений: {reps}")
                     print(f"   Время: {minutes} мин, Точность: {accuracy:.1f}%")
 
-                    
                     for ex in workout.get('exercises', []):
                         ex_name = ex.get('name', 'Неизвестно')
                         ex_reps = ex.get('repetitions', 0)
@@ -620,42 +633,25 @@ def get_workout_history():
         print(f"{Colors.RED}❌ Ошибка: {e}{Colors.END}")
         input("\nНажмите Enter для продолжения...")
 
-
-
 def display_fist_palm_progress(data):
     """Отображает прогресс для упражнения Кулак-ладонь"""
     clear_screen()
 
     structured = data.get('structured', {})
 
-    
     state = structured.get('state', 'unknown')
-    if state is None:
-        state = 'unknown'
-
     current_cycle = structured.get('current_cycle', 0)
-    if current_cycle is None:
-        current_cycle = 0
-
     total_cycles = structured.get('total_cycles', 5)
-    if total_cycles is None:
-        total_cycles = 5
-
     countdown = structured.get('countdown')
     progress = structured.get('progress_percent', 0)
-    if progress is None:
-        progress = 0
-
     message = data.get('message', '')
 
     print_header(f"🎯 {EXERCISE_NAMES['3']}")
 
-    
     hand = data.get('hand_detected', False)
     hand_symbol = "🖐️" if hand else "❌"
     print(f"{hand_symbol} Рука: {'в кадре' if hand else 'не обнаружена'}")
 
-    
     finger_states = data.get('finger_states', [])
     if finger_states:
         finger_names = ["Большой", "Указат", "Средний", "Безым", "Мизинец"]
@@ -669,7 +665,6 @@ def display_fist_palm_progress(data):
 
     print("-" * 60)
 
-    
     steps = [
         {"name": "Сожмите кулак", "state": "waiting_fist"},
         {"name": "Держите кулак", "state": "holding_fist"},
@@ -679,14 +674,12 @@ def display_fist_palm_progress(data):
 
     print("📋 ПРОГРЕСС УПРАЖНЕНИЯ:")
 
-    
     current_step_index = -1
     for i, step in enumerate(steps):
         if step["state"] == state:
             current_step_index = i
             break
 
-    
     for i, step in enumerate(steps):
         if i < current_step_index:
             print(f"  {Colors.GREEN}✅ {step['name']}{Colors.END}")
@@ -700,14 +693,12 @@ def display_fist_palm_progress(data):
 
     print(f"\n🔄 Цикл: {current_cycle}/{total_cycles}")
 
-    
     if "holding" in str(state) and countdown is not None:
         bar_length = 30
         filled = int(progress / 100 * bar_length)
         bar = "█" * filled + "░" * (bar_length - filled)
         print(f"\n{Colors.CYAN}⏱️  Осталось: {countdown}с [{bar}] {progress:.0f}%{Colors.END}")
 
-    
     if "🎉" in message:
         print(f"\n{Colors.GREEN}{message}{Colors.END}")
     elif "❌" in message:
@@ -754,11 +745,10 @@ def reset_exercise_on_server():
     """Отправляет запрос на сброс упражнения на сервере"""
     global auth_token
     try:
-        
         response = requests.post(
-            "http://localhost:8080/api/exercise/reset",  
+            f"{BASE_URL}/api/exercise/reset",
             headers={"Authorization": f"Bearer {auth_token}"},
-            json={"exercise_type": "fist-palm"},  
+            json={"exercise_type": "fist-palm"},
             timeout=2
         )
         if response.status_code == 200:
@@ -784,17 +774,15 @@ def connect_and_run(exercise_key):
     exercise_name = EXERCISE_NAMES[exercise_key]
     exercise_type = EXERCISE_TYPES[exercise_key]
 
-    while True:  # Цикл для повторного выполнения упражнения
+    while True:
         # Проверяем состояние упражнения
         print(f"\n{Colors.CYAN}⏳ Проверка состояния упражнения...{Colors.END}")
 
-        # Ждем готовности упражнения (не более 10 секунд)
         if not wait_for_exercise_reset(exercise_type):
-            # Если не готово, пробуем принудительный сброс
             print(f"{Colors.YELLOW}⚠️ Принудительный сброс через API...{Colors.END}")
             try:
                 reset_response = requests.post(
-                    "http://localhost:8080/api/exercise/reset",
+                    f"{BASE_URL}/api/exercise/reset",
                     headers={"Authorization": f"Bearer {auth_token}"},
                     json={"exercise_type": exercise_type},
                     timeout=2
@@ -805,13 +793,11 @@ def connect_and_run(exercise_key):
             except:
                 pass
 
-        # Начинаем тренировку
         print(f"\n{Colors.CYAN}🔄 Начинаем тренировку...{Colors.END}")
         session_id = start_workout()
         if not session_id:
             return False
 
-        # Кодируем токен для URL
         encoded_token = urllib.parse.quote(auth_token)
         ws_url = f"{url}?token={encoded_token}"
 
@@ -821,12 +807,12 @@ def connect_and_run(exercise_key):
         print(f"👤 Пользователь: {user_info.get('username')}")
 
         try:
-            ws = websocket.create_connection(ws_url, timeout=10)
+            ws = websocket.create_connection(ws_url, timeout=CONNECTION_TIMEOUT)
             print(f"{Colors.GREEN}✅ WebSocket подключен успешно!{Colors.END}")
 
             camera = cv2.VideoCapture(0)
-            camera.set(cv2.CAP_PROP_FRAME_WIDTH, 640)
-            camera.set(cv2.CAP_PROP_FRAME_HEIGHT, 480)
+            camera.set(cv2.CAP_PROP_FRAME_WIDTH, FRAME_WIDTH)
+            camera.set(cv2.CAP_PROP_FRAME_HEIGHT, FRAME_HEIGHT)
 
             if not camera.isOpened():
                 print(f"{Colors.RED}❌ Не удалось открыть камеру{Colors.END}")
@@ -842,7 +828,7 @@ def connect_and_run(exercise_key):
             exercise_completed = False
             stats_saved_for_cycle = set()
             workout_ended = False
-            total_cycles = 5  # должно приходить с сервера
+            total_cycles = 5
 
             while True:
                 good, img = camera.read()
@@ -851,17 +837,16 @@ def connect_and_run(exercise_key):
 
                 frame_count += 1
 
-                if frame_count % 3 == 0:
-                    _, buffer = cv2.imencode('.jpg', img, [cv2.IMWRITE_JPEG_QUALITY, 50])
+                if frame_count % FRAME_SKIP == 0:
+                    _, buffer = cv2.imencode('.jpg', img, [cv2.IMWRITE_JPEG_QUALITY, JPEG_QUALITY])
                     img_base64 = base64.b64encode(buffer).decode('utf-8')
 
-                    # Отправляем кадр на сервер
                     ws.send(json.dumps({
                         "frame": img_base64,
                         "exercise_type": exercise_type
                     }))
 
-                    ws.settimeout(0.5)
+                    ws.settimeout(WS_TIMEOUT)
                     try:
                         result = ws.recv()
                         data = json.loads(result)
@@ -873,49 +858,40 @@ def connect_and_run(exercise_key):
                             if processed is not None:
                                 cv2.imshow('Processed', processed)
 
-                        # Обновляем отображение
                         current_time = time.time()
                         if current_time - last_update_time > 0.5:
                             if exercise_key == '3':
                                 display_fist_palm_progress(data)
 
-                                # Получаем текущий цикл из структурированных данных
                                 structured = data.get('structured', {})
                                 current_cycle = structured.get('current_cycle', 0)
                                 total_cycles = structured.get('total_cycles', 5)
                                 completed = structured.get('completed', False)
 
-                                # Если цикл увеличился
                                 if current_cycle > last_cycle and last_cycle >= 0:
-                                    # Это завершенный цикл (предыдущий)
                                     completed_cycle = last_cycle
                                     if completed_cycle not in stats_saved_for_cycle and completed_cycle > 0:
                                         stats_saved_for_cycle.add(completed_cycle)
-                                        sets_completed = len(stats_saved_for_cycle)  # sets_completed - это количество сохраненных циклов
+                                        sets_completed = len(stats_saved_for_cycle)
                                         print(f"\n{Colors.GREEN}✅ ЦИКЛ {completed_cycle}/{total_cycles} ЗАВЕРШЕН!{Colors.END}")
 
-                                        # Сохраняем статистику для этого цикла
                                         if add_exercise_set(session_id, exercise_type, 5, 60, 95.0):
                                             print(f"{Colors.GREEN}✅ Статистика сохранена!{Colors.END}")
                                         else:
                                             print(f"{Colors.RED}❌ Ошибка сохранения статистики{Colors.END}")
 
-                                # Если упражнение завершено
                                 if completed and not exercise_completed:
-                                    # Добавляем последний цикл в статистику, если он еще не сохранен
                                     if total_cycles not in stats_saved_for_cycle:
                                         stats_saved_for_cycle.add(total_cycles)
-                                        sets_completed = len(stats_saved_for_cycle)  # обновляем количество
+                                        sets_completed = len(stats_saved_for_cycle)
                                         print(f"\n{Colors.GREEN}✅ ЦИКЛ {total_cycles}/{total_cycles} ЗАВЕРШЕН!{Colors.END}")
 
-                                        # Сохраняем статистику для последнего цикла
                                         if add_exercise_set(session_id, exercise_type, 5, 60, 95.0):
                                             print(f"{Colors.GREEN}✅ Статистика сохранена!{Colors.END}")
 
                                     exercise_completed = True
                                     print(f"\n{Colors.YELLOW}🎯 УПРАЖНЕНИЕ ВЫПОЛНЕНО!{Colors.END}")
 
-                                    # Завершаем текущую тренировку
                                     if end_workout(session_id):
                                         print(f"{Colors.GREEN}✅ Тренировка завершена!{Colors.END}")
 
@@ -933,7 +909,6 @@ def connect_and_run(exercise_key):
                     except Exception as e:
                         print(f"\n{Colors.RED}❌ Ошибка получения: {e}{Colors.END}")
 
-                # Добавляем информацию на кадр
                 cv2.putText(img, f"User: {user_info.get('username', '')}", (10, 30),
                             cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 255, 0), 2)
                 cv2.putText(img, f"Sets: {sets_completed}/{total_cycles}", (10, 55),
@@ -944,19 +919,16 @@ def connect_and_run(exercise_key):
                 cv2.imshow('Original', img)
 
                 key = cv2.waitKey(1) & 0xFF
-                if key == 27:  # ESC
+                if key == 27:
                     workout_ended = True
                     break
 
-                # Если упражнение завершено, выходим из цикла немедленно
                 if exercise_completed:
                     break
 
-            # Освобождаем ресурсы камеры и закрываем окна
             camera.release()
             cv2.destroyAllWindows()
 
-            # Закрываем WebSocket соединение
             try:
                 ws.close()
                 print("🔌 WebSocket соединение закрыто")
@@ -968,25 +940,19 @@ def connect_and_run(exercise_key):
 
             print("\n🔌 Соединение закрыто")
 
-            # Если упражнение было завершено, спрашиваем пользователя
             if exercise_completed:
-                # СПРАШИВАЕМ ХОЧЕТ ЛИ ПОЛЬЗОВАТЕЛЬ ВЫПОЛНИТЬ УПРАЖНЕНИЕ СНОВА
                 print(f"\n{Colors.CYAN}Хотите выполнить это упражнение еще раз? (y/n): {Colors.END}", end="")
                 choice = input().strip().lower()
 
                 if choice in ['y', 'д', 'yes', 'да']:
                     print(f"{Colors.GREEN}🔄 Начинаем новое выполнение...{Colors.END}")
-
-                    # Даем время серверу обработать завершение
                     time.sleep(2)
-
-                    continue  # Возвращаемся к началу while True для нового выполнения
+                    continue
                 else:
                     print(f"{Colors.BLUE}⏹️ Возврат в меню упражнений...{Colors.END}")
                     time.sleep(1)
-                    break  # Выходим из цикла и возвращаемся в меню
+                    break
             else:
-                # Если упражнение не было завершено (ESC или ошибка), просто возвращаемся в меню
                 break
 
         except websocket.WebSocketBadStatusException as e:
@@ -1012,13 +978,12 @@ def check_exercise_state(exercise_type):
     global auth_token
     try:
         response = requests.get(
-            f"http://localhost:8080/api/exercise_state?type={exercise_type}",
+            f"{BASE_URL}/api/exercise_state?type={exercise_type}",
             headers={"Authorization": f"Bearer {auth_token}"},
             timeout=3
         )
         if response.status_code == 200:
             data = response.json()
-            
             if data.get('structured'):
                 print(f"📊 Получено состояние: {data['structured']}")
             return data
@@ -1042,15 +1007,12 @@ def wait_for_exercise_reset(exercise_type, max_attempts=10):
 
             print(f"🔄 Проверка состояния: цикл={current_cycle}, состояние={state_name}, завершено={completed}")
 
-            
             if not completed and current_cycle == 0 and state_name == 'waiting_fist':
                 print(f"{Colors.GREEN}✅ Упражнение готово к началу{Colors.END}")
                 return True
 
-            
             if completed and auto_reset:
                 print(f"{Colors.YELLOW}⏳ Упражнение завершено, но будет сброшено при подключении...{Colors.END}")
-                
                 time.sleep(2)
                 continue
 
@@ -1064,6 +1026,8 @@ def main():
 
     print("=" * 60)
     print("🎮 ТЕСТОВЫЙ КЛИЕНТ ДЛЯ LFK")
+    print("=" * 60)
+    print(f"🌐 Сервер: {BASE_URL}")
     print("=" * 60)
 
     while True:

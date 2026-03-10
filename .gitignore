@@ -14,3 +14,4 @@ __pycache__/
 .vscode/
 .idea/
 EOF
+/backend/python_processor/lfk_python.log

@@ -1,15 +1,13 @@
-version: '3.8'
+# /home/server/github/lfk/deployments/docker-compose.yml
 
-# Тома для хранения данных (ОБЪЯВЛЯЕМ ОДИН РАЗ!)
+# Тома для хранения данных
 volumes:
   postgres_data:
     name: lfk_postgres_data
   redis_data:
     name: lfk_redis_data
-  pgadmin_data:
-    name: lfk_pgadmin_data
 
-# Сеть для контейнеров (ОДИН РАЗ!)
+# Сеть для контейнеров
 networks:
   lfk-network:
     name: lfk_network
@@ -26,12 +24,11 @@ services:
       POSTGRES_DB: lfkdb
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: 123456
-      POSTGRES_INITDB_ARGS: "--encoding=UTF-8"
     ports:
       - "5432:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
-      - ../backend/migrations/init.sql:/docker-entrypoint-initdb.d/init.sql
+      - /home/server/github/lfk/backend/migrations/init.sql:/docker-entrypoint-initdb.d/init.sql
     networks:
       - lfk-network
     healthcheck:
@@ -62,20 +59,20 @@ services:
   # --- Python Processor ---
   python-processor:
     build:
-      context: ..
+      context: /home/server/github/lfk
       dockerfile: deployments/docker/python/Dockerfile
     container_name: lfk-python
     restart: unless-stopped
     ports:
       - "5001:5001"
     volumes:
-      # Монтируем код для разработки (чтобы не пересобирать)
-      - ../python_processor:/app
-      # Монтируем папку для отладочных кадров
-      - ../python_processor/debug_frames:/app/debug_frames
+      - /home/server/github/lfk/backend/python_processor:/app
+      - /home/server/github/lfk/backend/python_processor/debug_frames:/app/debug_frames
     environment:
       - PYTHONUNBUFFERED=1
       - TZ=Europe/Moscow
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
     networks:
       - lfk-network
     depends_on:
@@ -91,16 +88,18 @@ services:
   # --- Go Server ---
   go-server:
     build:
-      context: ..
+      context: /home/server/github/lfk
       dockerfile: deployments/docker/go/Dockerfile
     container_name: lfk-go
     restart: unless-stopped
     ports:
       - "8080:8080"
     volumes:
-      # Монтируем конфиги (чтобы менять без пересборки)
-      - ../backend/configs:/app/configs
+      - /home/server/github/lfk/backend/configs:/app/configs
     environment:
+      # Указываем какой конфиг использовать для Docker
+      - CONFIG_PATH=/app/configs/config.docker.yaml
+      
       # Database
       - DB_HOST=postgres
       - DB_PORT=5432
@@ -108,19 +107,19 @@ services:
       - DB_PASSWORD=123456
       - DB_NAME=lfkdb
       - DB_SSLMODE=disable
-
+      
       # Redis
       - REDIS_ADDR=redis:6379
       - REDIS_PASSWORD=
       - REDIS_DB=0
-
+      
       # Python Processor
       - PYTHON_PROCESSOR_URL=http://python-processor:5001
-
+      
       # JWT
       - JWT_SECRET=your-super-secret-jwt-key-change-in-production
       - JWT_TOKEN_DURATION=24h
-
+      
       # Server
       - SERVER_PORT=8080
       - GIN_MODE=release
@@ -134,11 +133,11 @@ services:
       python-processor:
         condition: service_started
     healthcheck:
-      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:8080/api/health"]
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:8080/health"]
       interval: 30s
       timeout: 10s
       retries: 3
-      start_period: 20s
+      start_period: 40s
 
   # --- Adminer (для удобного просмотра БД) ---
   adminer:
@@ -154,23 +153,3 @@ services:
     environment:
       - ADMINER_DEFAULT_SERVER=postgres
       - ADMINER_DESIGN=nette
-
-  # --- pgAdmin (альтернатива Adminer, если нужно) ---
-  pgadmin:
-    image: dpage/pgadmin4:latest
-    container_name: lfk-pgadmin
-    restart: unless-stopped
-    ports:
-      - "8082:80"
-    networks:
-      - lfk-network
-    depends_on:
-      - postgres
-    environment:
-      - PGADMIN_DEFAULT_EMAIL=admin@lfk.com
-      - PGADMIN_DEFAULT_PASSWORD=admin
-      - PGADMIN_CONFIG_SERVER_MODE=False
-    volumes:
-      - pgadmin_data:/var/lib/pgadmin
-    profiles:
-      - tools

@@ -1,51 +1,43 @@
-# ---- 1 СЛОЙ: Сборка приложения ----
-# Берем образ с Go для компиляции
-FROM golang:1.21-alpine AS builder
+# /home/server/github/lfk/deployments/docker/go/Dockerfile
 
-# Устанавливаем рабочую папку
+# Используем официальный образ Go 1.25
+FROM golang:1.25-bookworm AS builder
+
 WORKDIR /app
 
-# Копируем файлы с зависимостями (для кэширования)
+# Копируем go.mod и go.sum
 COPY backend/go.mod backend/go.sum ./
 
-# Скачиваем все зависимости
+# Скачиваем зависимости
 RUN go mod download
 
 # Копируем весь код бэкенда
 COPY backend/ .
 
-# Компилируем в один бинарный файл
-# CGO_ENABLED=0 - отключаем CGO для статической сборки
-# -ldflags="-w -s" - уменьшаем размер бинарника
-RUN CGO_ENABLED=0 GOOS=linux go build -ldflags="-w -s" -o lfk-server ./cmd/main.go
+# Собираем приложение (исправленный путь)
+RUN go build -o main ./cmd/server/main.go
 
-# ---- 2 СЛОЙ: Финальный образ ----
-# Берем минимальный образ Alpine
-FROM alpine:latest
+# Финальный образ
+FROM debian:bookworm-slim
 
-# Устанавливаем необходимые пакеты
-# ca-certificates - для HTTPS запросов
-# tzdata - для временных зон
-# bash - для скриптов (опционально)
-RUN apk --no-cache add ca-certificates tzdata bash
+RUN apt-get update && apt-get install -y \
+    ca-certificates \
+    tzdata \
+    && rm -rf /var/lib/apt/lists/*
 
-# Создаем непривилегированного пользователя (безопасность!)
-RUN adduser -D -u 1000 appuser
+# Создаем пользователя
+RUN useradd -m -u 1000 appuser
 
-# Переключаемся на него
-USER appuser
-
-# Создаем рабочую папку
 WORKDIR /app
 
-# Копируем бинарник из первого слоя
-COPY --from=builder /app/lfk-server .
+# Копируем собранное приложение
+COPY --from=builder /app/main .
 
-# Копируем конфиги (они будут перезаписываться через volume)
+# Копируем конфиги (если нужны)
 COPY --from=builder /app/configs ./configs
 
-# Указываем порт
+USER appuser
+
 EXPOSE 8080
 
-# Запускаем сервер
-CMD ["./lfk-server"]
+CMD ["./main"]

@@ -1,5 +1,9 @@
 from abc import ABC, abstractmethod
 import cv2
+import logging
+
+# Настройка логгера
+logger = logging.getLogger('LKF.Exercises.Base')
 
 class BaseExercise(ABC):
     """Базовый класс для всех упражнений"""
@@ -8,13 +12,14 @@ class BaseExercise(ABC):
         self.name = "Базовое упражнение"
         self.description = ""
         self.exercise_id = "base"
+        self.logger = logging.getLogger(f'LKF.Exercise.{self.__class__.__name__}')
+        self.logger.debug(f"Инициализация {self.name}")
 
     @abstractmethod
     def check_fingers(self, finger_states, hand_landmarks, frame_shape):
         """
         Проверяет правильность выполнения упражнения
-        Должен возвращать (is_correct, message, finger_colors)
-        finger_colors - список цветов для каждого пальца (BGR)
+        Должен возвращать (is_correct, message)
         """
         pass
 
@@ -57,7 +62,7 @@ class BaseExercise(ABC):
             cv2.circle(frame, (x, y), 20, color, -1)
             cv2.circle(frame, (x, y), 20, (255, 255, 255), 2)
 
-            # Номер пальца и статус
+            # Статус пальца
             status = "⬆️" if finger_states[i] else "⬇️"
             cv2.putText(frame, f"{i}{status}", (x-20, y-25),
                         cv2.FONT_HERSHEY_SIMPLEX, 0.7, (255, 255, 255), 2)
@@ -67,11 +72,11 @@ class BaseExercise(ABC):
         cv2.rectangle(frame, (5, 5), (450, 130), (255, 255, 255), 2)
 
         info_y = 30
-        cv2.putText(frame, f"Упражнение: {self.name}", (15, info_y),
+        cv2.putText(frame, f"Exercise: {self.name}", (15, info_y),
                     cv2.FONT_HERSHEY_SIMPLEX, 0.7, (255, 255, 255), 2)
 
         info_y += 25
-        cv2.putText(frame, f"Пальцев поднято: {sum(finger_states)}/5", (15, info_y),
+        cv2.putText(frame, f"Fingers up: {sum(finger_states)}/5", (15, info_y),
                     cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 255, 255), 2)
 
         info_y += 25

@@ -8,18 +8,99 @@ import logging
 import time
 import os
 from collections import deque
+from functools import wraps
+from datetime import datetime
 
 # Импортируем упражнения
 from exercises import EXERCISE_CLASSES
 
-# Настраиваем логирование
+# ==================== НАСТРОЙКА ЛОГИРОВАНИЯ ====================
+class ColoredTableFormatter(logging.Formatter):
+    """Форматтер с цветами и табличным выводом"""
+
+    # Цвета
+    grey = "\x1b[38;20m"
+    blue = "\x1b[34;20m"
+    cyan = "\x1b[36;20m"
+    yellow = "\x1b[33;20m"
+    red = "\x1b[31;20m"
+    bold_red = "\x1b[31;1m"
+    green = "\x1b[32;20m"
+    reset = "\x1b[0m"
+
+    # Размеры колонок
+    LEVEL_WIDTH = 10
+    TIME_WIDTH = 23
+
+    def format(self, record):
+        # Выбираем цвет для уровня
+        level_colors = {
+            logging.DEBUG: self.cyan,
+            logging.INFO: self.green,
+            logging.WARNING: self.yellow,
+            logging.ERROR: self.red,
+            logging.CRITICAL: self.bold_red
+        }
+        level_color = level_colors.get(record.levelno, self.grey)
+
+        # Уровень логирования (цветной)
+        level_name = f"{record.levelname}".ljust(self.LEVEL_WIDTH - 2)
+        level_colored = f"{level_color}[{level_name}]{self.reset}"
+
+        # Время
+        timestamp = datetime.fromtimestamp(record.created).strftime('%Y-%m-%d %H:%M:%S')
+        timestamp_colored = f"{self.blue}[{timestamp}]{self.reset}"
+
+        # Длительность (если есть)
+        duration = ""
+        if hasattr(record, 'duration'):
+            duration = f"{self.yellow}[{record.duration:>8}ms]{self.reset} "
+
+        # Сообщение
+        message = record.getMessage()
+
+        return f"{level_colored} {timestamp_colored} {duration}{message}"
+
+# Настройка корневого логгера
 logging.basicConfig(level=logging.INFO)
-log = logging.getLogger('werkzeug')
-log.setLevel(logging.ERROR)
+
+# Создаем логгер для приложения
+logger = logging.getLogger('LFK')
+logger.setLevel(logging.DEBUG)
+
+# Убираем стандартные обработчики
+logger.handlers.clear()
+
+# Консольный handler с цветами
+console_handler = logging.StreamHandler()
+console_handler.setLevel(logging.DEBUG)
+console_formatter = ColoredTableFormatter()
+console_handler.setFormatter(console_formatter)
+logger.addHandler(console_handler)
+
+# Файловый handler (без цветов)
+file_handler = logging.FileHandler('lfk_python.log')
+file_handler.setLevel(logging.INFO)
+file_formatter = logging.Formatter(
+    '[%(levelname)s] [%(asctime)s] %(message)s',
+    datefmt='%Y-%m-%d %H:%M:%S'
+)
+file_handler.setFormatter(file_formatter)
+logger.addHandler(file_handler)
+
+# Отключаем лишние логи
+logging.getLogger('werkzeug').setLevel(logging.ERROR)
+logging.getLogger('socketio').setLevel(logging.ERROR)
+logging.getLogger('engineio').setLevel(logging.ERROR)
+
+# Сокращения для удобства
+log = logger
+
+# ==================== ИНИЦИАЛИЗАЦИЯ ====================
 
 app = Flask(__name__)
 app.config['SECRET_KEY'] = 'secret!'
-socketio = SocketIO(app, cors_allowed_origins="*", ping_timeout=60, ping_interval=25)
+socketio = SocketIO(app, cors_allowed_origins="*", ping_timeout=60, ping_interval=25, logger=False, engineio_logger=False)
 
 # Инициализация MediaPipe
 mp_hands = mp.solutions.hands
@@ -33,11 +114,34 @@ hands = mp_hands.Hands(
     min_tracking_confidence=0.5
 )
 
-# Глобальный счетчик кадров для генерации последовательных timestamp
 frame_counter = 0
-# Храним последние несколько кадров для сглаживания
 frame_buffer = deque(maxlen=2)
 last_processed_time = time.time()
+
+# ==================== ДЕКОРАТОРЫ ====================
+
+def log_execution_time(func):
+    """Декоратор для измерения времени выполнения"""
+    @wraps(func)
+    def wrapper(*args, **kwargs):
+        start = time.perf_counter()
+        result = func(*args, **kwargs)
+        elapsed = (time.perf_counter() - start) * 1000
+        log.debug(f"{func.__name__} [{(elapsed/1000):.6f}s]", extra={'duration': f'{elapsed:.3f}ms'})
+        return result
+    return wrapper
+
+def log_function_call(func):
+    """Декоратор для логирования вызова функции"""
+    @wraps(func)
+    def wrapper(*args, **kwargs):
+        log.debug(f"▶ Вызов {func.__name__}")
+        result = func(*args, **kwargs)
+        log.debug(f"◀ Завершен {func.__name__}")
+        return result
+    return wrapper
+
+# ==================== МЕНЕДЖЕР УПРАЖНЕНИЙ ====================
 
 class ExerciseManager:
     """Менеджер упражнений"""
@@ -47,39 +151,42 @@ class ExerciseManager:
         self.current_exercise = None
         self.current_exercise_id = "fist"
         self.connection_count = 0
+        self.stats = {
+            'frames_processed': 0,
+            'hands_detected': 0,
+            'avg_processing_time': 0
+        }
 
-        # Загружаем все доступные упражнения
         self.load_exercises()
-
-        # Устанавливаем упражнение по умолчанию
         self.set_exercise("fist")
 
-        # Создаем папку для отладки
         if not os.path.exists('debug_frames'):
             os.makedirs('debug_frames')
+
+        log.info("Менеджер упражнений инициализирован")
 
     def load_exercises(self):
         """Загружает все упражнения из папки exercises"""
         for ex_id, ex_class in EXERCISE_CLASSES.items():
             self.exercises[ex_id] = ex_class()
-            print(f"📚 Загружено упражнение: {ex_id} - {self.exercises[ex_id].name}")
+            log.info(f"Загружено упражнение: {ex_id} - {self.exercises[ex_id].name}")
 
     def set_exercise(self, exercise_id):
         """Устанавливает текущее упражнение"""
         if exercise_id in self.exercises:
             self.current_exercise = self.exercises[exercise_id]
             self.current_exercise_id = exercise_id
-            print(f"🔄 Текущее упражнение: {self.current_exercise.name}")
+            log.info(f"Текущее упражнение: {self.current_exercise.name}")
             return True
         else:
-            print(f"❌ Упражнение {exercise_id} не найдено")
+            log.error(f"Упражнение {exercise_id} не найдено")
             return False
 
     def reset_current_exercise(self):
         """Сбрасывает текущее упражнение в начальное состояние"""
         if self.current_exercise and hasattr(self.current_exercise, 'reset'):
             self.current_exercise.reset()
-            print(f"🔄 Текущее упражнение сброшено (полный сброс)")
+            log.info("Текущее упражнение сброшено")
             return True
         return False
 
@@ -88,11 +195,11 @@ class ExerciseManager:
         if self.current_exercise:
             if hasattr(self.current_exercise, 'reset_for_new_attempt'):
                 self.current_exercise.reset_for_new_attempt()
-                print(f"🔄 Упражнение сброшено для нового подхода")
+                log.info("Упражнение сброшено для нового подхода")
                 return True
             elif hasattr(self.current_exercise, 'reset'):
                 self.current_exercise.reset()
-                print(f"🔄 Упражнение сброшено (через reset)")
+                log.info("Упражнение сброшено (через reset)")
                 return True
         return False
 
@@ -100,10 +207,12 @@ class ExerciseManager:
         """Возвращает список доступных упражнений"""
         return [{"id": ex_id, "name": ex.name} for ex_id, ex in self.exercises.items()]
 
+    @log_execution_time
     def process_frame(self, frame_data):
         """Обработка кадра"""
         try:
-            print(f"\n=== НОВЫЙ КАДР ({self.current_exercise.name}) ===")
+            start_time = time.time()
+            self.stats['frames_processed'] += 1
 
             # Декодируем base64
             if isinstance(frame_data, str):
@@ -113,9 +222,9 @@ class ExerciseManager:
                         frame_data += '=' * (4 - missing_padding)
 
                     frame_bytes = base64.b64decode(frame_data)
-                    print(f"📦 Декодировано {len(frame_bytes)} байт")
+                    log.debug(f"Декодировано {len(frame_bytes)} байт")
                 except Exception as e:
-                    print(f"❌ Ошибка декодирования base64: {e}")
+                    log.error(f"Ошибка декодирования base64: {e}")
                     return self.error_response(f"Ошибка декодирования")
             else:
                 return self.error_response("Invalid frame data type")
@@ -129,14 +238,10 @@ class ExerciseManager:
 
             # Конвертируем в RGB для MediaPipe
             frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-
-            # Устанавливаем флаг для предотвращения записи
             frame_rgb.flags.writeable = False
 
             # Обрабатываем кадр
             results = hands.process(frame_rgb)
-
-            # Возвращаем флаг
             frame_rgb.flags.writeable = True
 
             # Создаем копию для визуализации
@@ -144,19 +249,32 @@ class ExerciseManager:
             h, w, _ = frame.shape
 
             if results.multi_hand_landmarks:
-                return self.process_hand(results, display_frame, h, w)
+                self.stats['hands_detected'] += 1
+                result = self.process_hand(results, display_frame, h, w)
             else:
-                return self.no_hand_response(display_frame)
+                result = self.no_hand_response(display_frame)
+
+            # Вычисляем и сохраняем время обработки
+            process_time = (time.time() - start_time) * 1000
+            self.stats['avg_processing_time'] = (
+                                                        self.stats['avg_processing_time'] * (self.stats['frames_processed'] - 1) + process_time
+                                                ) / self.stats['frames_processed']
+
+            if process_time > 100:
+                log.warning(f"Медленная обработка кадра: {process_time:.1f}ms")
+            else:
+                log.debug(f"Кадр обработан за {(process_time/1000):.6f}s")
+
+            return result
 
         except Exception as e:
-            print(f"❌ Критическая ошибка: {e}")
+            log.error(f"Критическая ошибка при обработке кадра: {e}")
             import traceback
             traceback.print_exc()
             return self.error_response(str(e))
 
     def process_hand(self, results, display_frame, h, w):
         """Обрабатывает кадр с рукой"""
-        global message
         raised_fingers = 0
         finger_states = []
 
@@ -186,16 +304,19 @@ class ExerciseManager:
             )
 
             raised_fingers = sum(finger_states)
-            print(f"   Пальцы: {['⬆️' if s else '⬇️' for s in finger_states]}")
-            print(f"   Результат: {message}")
+
+            finger_emojis = ['⬆️' if s else '⬇️' for s in finger_states]
+            log.debug(f"Состояние пальцев: {finger_emojis}")
+            log.debug(f"Результат: {message}")
 
         return self.success_response(display_frame, True, raised_fingers, finger_states, message)
 
     def no_hand_response(self, display_frame):
         """Ответ когда нет руки"""
         cv2.rectangle(display_frame, (5, 5), (200, 50), (0, 0, 0), -1)
-        cv2.putText(display_frame, "❌ НЕТ РУКИ", (15, 35),
+        cv2.putText(display_frame, "NO HAND", (15, 35),
                     cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 0, 255), 2)
+        log.debug("Рука не обнаружена")
         return self.success_response(display_frame, False, 0, [False]*5, "Рука не обнаружена")
 
     def success_response(self, frame, hand_detected, raised, states, message):
@@ -204,7 +325,6 @@ class ExerciseManager:
             _, buffer = cv2.imencode('.jpg', frame, [cv2.IMWRITE_JPEG_QUALITY, 80])
             frame_out = base64.b64encode(buffer).decode('utf-8')
 
-            # Базовый ответ
             response = {
                 "fist_detected": hand_detected,
                 "hand_detected": hand_detected,
@@ -217,7 +337,6 @@ class ExerciseManager:
                 "status": "success"
             }
 
-            # Добавляем структурированные данные для специальных упражнений
             if hasattr(self.current_exercise, 'get_structured_data'):
                 structured = self.current_exercise.get_structured_data()
                 if structured:
@@ -225,7 +344,7 @@ class ExerciseManager:
 
             return response
         except Exception as e:
-            print(f"❌ Ошибка при формировании ответа: {e}")
+            log.error(f"Ошибка при формировании ответа: {e}")
             return self.error_response("Error creating response")
 
     def error_response(self, message):
@@ -242,15 +361,34 @@ class ExerciseManager:
             "status": "error"
         }
 
+    def print_stats(self):
+        """Выводит статистику работы"""
+        log.info("=" * 60)
+        log.info("СТАТИСТИКА РАБОТЫ:")
+        log.info(f"  Обработано кадров: {self.stats['frames_processed']}")
+        log.info(f"  Рук обнаружено: {self.stats['hands_detected']}")
+        log.info(f"  Среднее время обработки: {self.stats['avg_processing_time']:.1f}ms")
+        detection_rate = (self.stats['hands_detected'] / self.stats['frames_processed'] * 100
+                          if self.stats['frames_processed'] > 0 else 0)
+        log.info(f"  Процент обнаружения: {detection_rate:.1f}%")
+        log.info("=" * 60)
+
 # Создаем менеджер упражнений
 exercise_manager = ExerciseManager()
 
+# ==================== МАРШРУТЫ ====================
+
 @app.route('/health', methods=['GET'])
 def health():
+    """Проверка здоровья сервиса"""
     return jsonify({
         "status": "ok",
         "current_exercise": exercise_manager.current_exercise_id,
-        "available_exercises": exercise_manager.get_exercise_list()
+        "available_exercises": exercise_manager.get_exercise_list(),
+        "stats": {
+            "frames_processed": exercise_manager.stats['frames_processed'],
+            "avg_processing_time": round(exercise_manager.stats['avg_processing_time'], 1)
+        }
     })
 
 @app.route('/exercises', methods=['GET'])
@@ -259,6 +397,11 @@ def list_exercises():
     return jsonify({
         "exercises": exercise_manager.get_exercise_list()
     })
+
+@app.route('/stats', methods=['GET'])
+def get_stats():
+    """Возвращает статистику работы"""
+    return jsonify(exercise_manager.stats)
 
 @app.route('/exercise_state', methods=['GET'])
 def get_exercise_state():
@@ -273,6 +416,7 @@ def get_exercise_state():
         if hasattr(exercise_manager.current_exercise, 'get_structured_data'):
             structured = exercise_manager.current_exercise.get_structured_data()
 
+        log.info(f"Запрос состояния: {exercise_type}")
         return jsonify({
             "status": "success",
             "current_exercise": exercise_manager.current_exercise_id,
@@ -281,7 +425,7 @@ def get_exercise_state():
             "auto_reset": getattr(exercise_manager.current_exercise, 'auto_reset_on_next_start', False)
         })
     except Exception as e:
-        print(f"❌ Ошибка получения состояния: {e}")
+        log.error(f"Ошибка получения состояния: {e}")
         return jsonify({"error": str(e), "status": "error"}), 500
 
 @app.route('/reset_exercise', methods=['POST'])
@@ -289,6 +433,7 @@ def reset_exercise():
     """Сбрасывает текущее упражнение (только по запросу)"""
     try:
         if exercise_manager.reset_current_exercise():
+            log.info("Упражнение сброшено по запросу")
             return jsonify({
                 "status": "success",
                 "message": "Exercise reset successfully"
@@ -299,6 +444,7 @@ def reset_exercise():
                 "message": "Exercise does not support reset"
             }), 400
     except Exception as e:
+        log.error(f"Ошибка при сбросе: {e}")
         return jsonify({"error": str(e), "status": "error"}), 400
 
 @app.route('/reset_for_new_attempt', methods=['POST'])
@@ -306,6 +452,7 @@ def reset_for_new_attempt():
     """Сбрасывает текущее упражнение для нового подхода"""
     try:
         if exercise_manager.reset_exercise_for_new_attempt():
+            log.info("Упражнение сброшено для нового подхода")
             return jsonify({
                 "status": "success",
                 "message": "Exercise reset for new attempt"
@@ -316,6 +463,7 @@ def reset_for_new_attempt():
                 "message": "Exercise does not support reset"
             }), 400
     except Exception as e:
+        log.error(f"Ошибка при сбросе: {e}")
         return jsonify({"error": str(e), "status": "error"}), 400
 
 @app.route('/set_exercise', methods=['POST'])
@@ -326,6 +474,7 @@ def set_exercise():
         exercise_id = data.get('exercise_id')
 
         if exercise_manager.set_exercise(exercise_id):
+            log.info(f"Смена упражнения на: {exercise_id}")
             return jsonify({
                 "status": "success",
                 "current_exercise": exercise_manager.current_exercise_id,
@@ -337,20 +486,22 @@ def set_exercise():
                 "message": f"Exercise {exercise_id} not found"
             }), 400
     except Exception as e:
+        log.error(f"Ошибка при смене упражнения: {e}")
         return jsonify({"error": str(e), "status": "error"}), 400
 
 @app.route('/process', methods=['POST'])
 def process_frame():
+    """Обработка кадра"""
     try:
         data = request.get_json()
         if not data:
-            log.warning("❌ No data provided")
+            log.warning("Пустой запрос")
             return jsonify({"error": "No data provided"}), 400
 
         # Проверяем, есть ли запрос только на получение состояния
         if data.get('get_state_only'):
             exercise_type = data.get('exercise_type', 'fist-palm')
-            log.info(f"📊 STATE CHECK: {exercise_type}")
+            log.info(f"Запрос состояния: {exercise_type}")
 
             if exercise_type != exercise_manager.current_exercise_id:
                 exercise_manager.set_exercise(exercise_type)
@@ -358,7 +509,6 @@ def process_frame():
             structured = None
             if hasattr(exercise_manager.current_exercise, 'get_structured_data'):
                 structured = exercise_manager.current_exercise.get_structured_data()
-                log.info(f"📊 Current state: {structured.get('state')}, cycle={structured.get('current_cycle')}")
 
             return jsonify({
                 "status": "success",
@@ -374,7 +524,7 @@ def process_frame():
         # Проверяем, есть ли запрос на сброс для нового подхода
         if data.get('reset_for_new_attempt'):
             exercise_type = data.get('exercise_type', 'fist-palm')
-            log.info(f"🔄 RESET: {exercise_type}")
+            log.info(f"Сброс упражнения: {exercise_type}")
 
             if exercise_type != exercise_manager.current_exercise_id:
                 exercise_manager.set_exercise(exercise_type)
@@ -410,22 +560,22 @@ def process_frame():
 
         frame = data.get('frame')
         if not frame:
-            log.warning("❌ No frame provided")
+            log.warning("Нет данных кадра")
             return jsonify({"error": "No frame provided"}), 400
 
-        log.info(f"📸 Processing frame, size: {len(frame)} bytes")
+        log.info(f"Получен кадр, размер: {len(frame)} байт")
         result = exercise_manager.process_frame(frame)
-        log.info(f"✅ Frame processed, hand_detected={result.get('hand_detected')}, message='{result.get('message')}'")
+        log.info(f"Кадр обработан, hand_detected={result.get('hand_detected')}")
 
         # Если упражнение завершено, помечаем его для сброса при следующем запуске
         if result and result.get('structured') and result['structured'].get('completed'):
-            log.info(f"🎯 Exercise completed")
+            log.info("Упражнение завершено")
             if hasattr(exercise_manager.current_exercise, 'mark_for_reset'):
                 exercise_manager.current_exercise.mark_for_reset()
 
         return jsonify(result)
     except Exception as e:
-        log.error(f"❌ Error in /process: {e}")
+        log.error(f"Ошибка при обработке: {e}")
         import traceback
         traceback.print_exc()
         return jsonify({
@@ -438,29 +588,30 @@ def process_frame():
             "status": "error"
         }), 500
 
+# ==================== WEBSOCKET ====================
+
 @socketio.on('connect')
 def handle_connect():
     global frame_counter
-    print('🔌 Клиент подключен')
-    # Сбрасываем счетчик кадров при новом подключении
+    log.info(f"Клиент подключен, SID: {request.sid}")
     frame_counter = 0
-    # Очищаем буфер кадров
     frame_buffer.clear()
 
     if hasattr(exercise_manager.current_exercise, 'auto_reset_on_next_start') and exercise_manager.current_exercise.auto_reset_on_next_start:
-        print('🔄 Автоматический сброс упражнения при новом подключении')
+        log.info("Автоматический сброс упражнения при новом подключении")
         exercise_manager.reset_exercise_for_new_attempt()
     else:
         exercise_manager.reset_current_exercise()
-        print('🔄 Упражнение сброшено для новой сессии')
 
 @socketio.on('disconnect')
 def handle_disconnect():
-    print('🔌 Клиент отключен')
+    log.info(f"Клиент отключен, SID: {request.sid}")
 
 @socketio.on('frame')
 def handle_frame(data):
     try:
+        start_time = time.time()
+
         if isinstance(data, dict):
             if 'exercise_type' in data:
                 exercise_manager.set_exercise(data['exercise_type'])
@@ -470,8 +621,11 @@ def handle_frame(data):
                 result = exercise_manager.process_frame(frame)
                 emit('feedback', result)
 
+                process_time = (time.time() - start_time) * 1000
+                log.debug(f"WebSocket обработка: {process_time:.1f}ms")
+
                 if result and result.get('structured') and result['structured'].get('completed'):
-                    print(f"🎯 Упражнение завершено и помечено для автосброса при следующем подключении")
+                    log.info("Упражнение завершено и помечено для автосброса")
             else:
                 emit('feedback', {
                     "fist_detected": False,
@@ -493,7 +647,7 @@ def handle_frame(data):
                 "status": "error"
             })
     except Exception as e:
-        print(f"❌ WebSocket error: {e}")
+        log.error(f"WebSocket ошибка: {e}")
         emit('feedback', {
             "fist_detected": False,
             "hand_detected": False,
@@ -504,13 +658,26 @@ def handle_frame(data):
             "status": "error"
         })
 
+# ==================== ЗАПУСК ====================
+
 if __name__ == '__main__':
+    print("\n" + "=" * 60)
+    print("🤚 PYTHON PROCESSOR".center(58))
     print("=" * 60)
-    print("🤚 Python Processor с модульными упражнениями")
-    print("=" * 60)
-    print("📡 Сервер: http://localhost:5001")
+    print(f"📡 Сервер: http://localhost:5001")
+    print(f"📁 Лог-файл: lfk_python.log")
     print("\n📋 Доступные упражнения:")
     for ex in exercise_manager.get_exercise_list():
-        print(f"   - {ex['id']}: {ex['name']}")
-    print("=" * 60)
+        print(f"   • {ex['id']}: {ex['name']}")
+    print("\n" + "=" * 60 + "\n")
+
+    # Периодический вывод статистики
+    import threading
+    def stats_reporter():
+        while True:
+            time.sleep(60)  # Каждую минуту
+            exercise_manager.print_stats()
+
+    threading.Thread(target=stats_reporter, daemon=True).start()
+
     socketio.run(app, host='0.0.0.0', port=5001, debug=False, allow_unsafe_werkzeug=True)

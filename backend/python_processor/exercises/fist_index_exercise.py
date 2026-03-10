@@ -1,4 +1,5 @@
 from .base_exercise import BaseExercise
+import logging
 
 class FistIndexExercise(BaseExercise):
     """Упражнение: Кулак с поднятым указательным пальцем"""
@@ -8,6 +9,8 @@ class FistIndexExercise(BaseExercise):
         self.name = "Кулак с указательным"
         self.description = "Сожмите кулак, но указательный палец поднимите"
         self.exercise_id = "fist-index"
+        self.logger = logging.getLogger('LKF.Exercise.FistIndex')
+        self.logger.debug(f"Упражнение инициализировано: {self.name}")
 
     def check_fingers(self, finger_states, hand_landmarks, frame_shape):
         """Проверяет, поднят ли указательный и сжаты ли остальные"""
@@ -17,31 +20,32 @@ class FistIndexExercise(BaseExercise):
         is_correct = index_raised and not other_raised
 
         if is_correct:
-            message = "✅ Указательный поднят, остальные сжаты!"
+            message = "✅ Указательный поднят, остальные сжаты"
+            self.logger.debug("Правильное положение")
         elif not index_raised:
             message = "❌ Поднимите указательный палец"
+            self.logger.debug("Ошибка: указательный палец не поднят")
         elif other_raised:
             message = "❌ Сожмите остальные пальцы"
+            self.logger.debug("Ошибка: другие пальцы подняты")
         else:
             message = "❌ Неправильное положение"
+            self.logger.debug("Ошибка: неизвестное положение")
 
         return is_correct, message
 
     def get_finger_colors(self, finger_states):
-        """Цвета для упражнения:
-        - Указательный палец (i=1): зеленый если поднят, красный если сжат
-        - Остальные пальцы: зеленый если сжаты, красный если подняты
-        """
+        """Цвета для упражнения"""
         colors = []
         for i, is_raised in enumerate(finger_states):
             if i == 1:  # Указательный палец
                 if is_raised:
-                    colors.append((0, 255, 0))  # Зеленый - правильно (поднят)
+                    colors.append((0, 255, 0))   # Зеленый - правильно (поднят)
                 else:
-                    colors.append((0, 0, 255))  # Красный - ошибка (сжат)
+                    colors.append((0, 0, 255))   # Красный - ошибка (сжат)
             else:  # Остальные пальцы
                 if is_raised:
-                    colors.append((0, 0, 255))  # Красный - ошибка (поднят)
+                    colors.append((0, 0, 255))   # Красный - ошибка (поднят)
                 else:
-                    colors.append((0, 255, 0))  # Зеленый - правильно (сжат)
+                    colors.append((0, 255, 0))   # Зеленый - правильно (сжат)
         return colors
