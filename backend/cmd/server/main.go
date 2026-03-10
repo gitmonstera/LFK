@@ -16,6 +16,7 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"path/filepath"
 	"syscall"
 	"time"
 
@@ -164,10 +165,36 @@ func setupRouter(
 		SkipPaths: []string{"/health", "/metrics"},
 	}))
 
-	// Метрики Prometheus
+	// ============ СТАТИЧЕСКИЕ ФАЙЛЫ И ГЛАВНАЯ ============
+	// Получаем текущую рабочую директорию (где лежит main.go)
+	wd, err := os.Getwd()
+	if err != nil {
+		log.Printf("Error getting working directory: %v", err)
+	} else {
+		// Путь к папке web (она рядом с main.go)
+		webPath := filepath.Join(wd, "web")
+
+		// Обслуживание статических файлов из папки web/downloads
+		downloadsPath := filepath.Join(webPath, "downloads")
+		router.Static("/downloads", downloadsPath)
+		log.Printf("Serving downloads from: %s", downloadsPath)
+
+		// Обслуживание логотипов из папки web/logo
+		logoPath := filepath.Join(webPath, "logo")
+		router.Static("/logo", logoPath)
+		log.Printf("Serving logos from: %s", logoPath)
+	}
+
+	// Главная страница (index.html рядом с main.go)
+	router.GET("/", func(c *gin.Context) {
+		indexPath := filepath.Join(wd, "index.html")
+		log.Printf("Serving index from: %s", indexPath)
+		c.File(indexPath)
+	})
+	// ============ МЕТРИКИ ============
 	router.GET("/metrics", gin.WrapH(promhttp.Handler()))
 
-	// Публичные маршруты
+	// ============ ПУБЛИЧНЫЕ API МАРШРУТЫ ============
 	public := router.Group("/api")
 	{
 		public.POST("/register", userHandler.Register)
@@ -179,7 +206,7 @@ func setupRouter(
 		public.GET("/user/check/username", userHandler.CheckUsername)
 	}
 
-	// Защищенные маршруты
+	// ============ ЗАЩИЩЕННЫЕ API МАРШРУТЫ ============
 	protected := router.Group("/api")
 	protected.Use(middleware.AuthMiddleware(cfg.Auth.JWTSecret))
 	{
@@ -213,7 +240,7 @@ func setupRouter(
 		protected.GET("/dashboard", statsHandler.GetDashboard)
 	}
 
-	// WebSocket маршруты
+	// ============ WEBSOCKET МАРШРУТЫ ============
 	ws := router.Group("/ws")
 	ws.Use(middleware.AuthMiddleware(cfg.Auth.JWTSecret))
 	{

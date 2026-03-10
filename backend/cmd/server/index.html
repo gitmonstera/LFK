@@ -1,0 +1,1092 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>LFK - Лечебная физическая культура</title>
+
+    <!-- Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+
+    <!-- Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Inter', sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: #333;
+            line-height: 1.6;
+        }
+
+        /* Хедер с градиентом */
+        .hero {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 4rem 2rem;
+            text-align: center;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .hero::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: url('data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" preserveAspectRatio="none"><path d="M0 100 L100 0 L100 100 Z" fill="rgba(255,255,255,0.05)"/></svg>');
+            background-size: cover;
+            opacity: 0.1;
+        }
+
+        .hero-content {
+            position: relative;
+            z-index: 1;
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+
+        .logo {
+            width: 100px;
+            height: 100px;
+            background: rgba(255,255,255,0.2);  /* полупрозрачный фон */
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin: 0 auto 2rem;
+            backdrop-filter: blur(10px);
+            border: 2px solid rgba(255,255,255,0.3);
+            overflow: hidden;  /* чтобы SVG не вылезал за границы */
+        }
+
+        .logo img {
+            width: 70%;  /* подбери размер под свой логотип */
+            height: 70%;
+            object-fit: contain;
+        }
+
+        .logo i {
+            font-size: 3rem;
+            color: white;
+        }
+
+        h1 {
+            font-size: 3.5rem;
+            font-weight: 700;
+            margin-bottom: 1rem;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.2);
+        }
+
+        .subtitle {
+            font-size: 1.2rem;
+            opacity: 0.95;
+            margin-bottom: 2rem;
+            max-width: 600px;
+            margin-left: auto;
+            margin-right: auto;
+        }
+
+        .badges {
+            display: flex;
+            gap: 1rem;
+            justify-content: center;
+            flex-wrap: wrap;
+            margin-bottom: 2rem;
+        }
+
+        .badge {
+            background: rgba(255,255,255,0.2);
+            padding: 0.5rem 1rem;
+            border-radius: 50px;
+            font-size: 0.9rem;
+            backdrop-filter: blur(5px);
+            border: 1px solid rgba(255,255,255,0.3);
+        }
+
+        .badge i {
+            margin-right: 0.5rem;
+        }
+
+        .nav-menu {
+            display: flex;
+            gap: 2rem;
+            justify-content: center;
+            flex-wrap: wrap;
+            margin-top: 3rem;
+        }
+
+        .nav-menu a {
+            color: white;
+            text-decoration: none;
+            font-weight: 500;
+            padding: 0.5rem 1rem;
+            border-radius: 5px;
+            transition: all 0.3s;
+        }
+
+        .nav-menu a:hover {
+            background: rgba(255,255,255,0.2);
+            transform: translateY(-2px);
+        }
+
+        /* Основной контейнер */
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 4rem 2rem;
+        }
+
+        /* Секции */
+        .section-title {
+            text-align: center;
+            margin-bottom: 3rem;
+        }
+
+        .section-title h2 {
+            font-size: 2.5rem;
+            color: #333;
+            margin-bottom: 1rem;
+        }
+
+        .section-title p {
+            color: #666;
+            max-width: 600px;
+            margin: 0 auto;
+        }
+
+        /* Карточки */
+        .features-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 2rem;
+            margin: 3rem 0;
+        }
+
+        .feature-card {
+            background: white;
+            padding: 2rem;
+            border-radius: 15px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.1);
+            transition: transform 0.3s;
+            text-align: center;
+        }
+
+        .feature-card:hover {
+            transform: translateY(-5px);
+        }
+
+        .feature-icon {
+            width: 60px;
+            height: 60px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin: 0 auto 1.5rem;
+        }
+
+        .feature-icon i {
+            font-size: 1.5rem;
+            color: white;
+        }
+
+        .feature-card h3 {
+            margin-bottom: 1rem;
+            color: #333;
+        }
+
+        .feature-card p {
+            color: #666;
+        }
+
+        /* Скриншоты */
+        .screenshots {
+            background: #f8f9fa;
+            padding: 4rem 0;
+        }
+
+        .screenshots-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 2rem;
+            margin-top: 3rem;
+        }
+
+        .screenshot-item {
+            background: white;
+            border-radius: 10px;
+            overflow: hidden;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.1);
+        }
+
+        .screenshot-placeholder {
+            height: 200px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-size: 3rem;
+            opacity: 0.8;
+        }
+
+        .screenshot-label {
+            padding: 1rem;
+            text-align: center;
+            background: white;
+            font-weight: 500;
+        }
+
+        /* Технологии */
+        .tech-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+            gap: 1.5rem;
+            margin: 2rem 0;
+        }
+
+        .tech-item {
+            background: white;
+            padding: 1.5rem;
+            border-radius: 10px;
+            text-align: center;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.1);
+            transition: transform 0.3s;
+        }
+
+        .tech-item:hover {
+            transform: translateY(-3px);
+        }
+
+        .tech-item i {
+            font-size: 2rem;
+            margin-bottom: 0.5rem;
+            color: #667eea;
+        }
+
+        .tech-item span {
+            display: block;
+            font-weight: 500;
+        }
+
+        /* Быстрый старт */
+        .quick-start {
+            background: #f8f9fa;
+            padding: 4rem 0;
+        }
+
+        .code-block {
+            background: #1e1e2f;
+            color: #fff;
+            padding: 1.5rem;
+            border-radius: 10px;
+            margin: 1rem 0;
+            position: relative;
+            font-family: 'Courier New', monospace;
+        }
+
+        .code-block pre {
+            margin: 0;
+            color: #a9b7c6;
+        }
+
+        .code-block .comment {
+            color: #6a9955;
+        }
+
+        .code-block .command {
+            color: #dcdcaa;
+        }
+
+        .copy-btn {
+            position: absolute;
+            top: 0.5rem;
+            right: 0.5rem;
+            background: rgba(255,255,255,0.1);
+            border: none;
+            color: white;
+            padding: 0.3rem 0.8rem;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 0.8rem;
+            transition: background 0.3s;
+        }
+
+        .copy-btn:hover {
+            background: rgba(255,255,255,0.2);
+        }
+
+        /* Архитектура */
+        .architecture {
+            background: white;
+            padding: 4rem 0;
+        }
+
+        .arch-diagram {
+            background: #1e1e2f;
+            color: white;
+            padding: 2rem;
+            border-radius: 10px;
+            margin: 2rem 0;
+            font-family: 'Courier New', monospace;
+            line-height: 2;
+        }
+
+        .arch-diagram .arrow {
+            color: #667eea;
+        }
+
+        .arch-diagram .component {
+            color: #dcdcaa;
+        }
+
+        .arch-diagram .db {
+            color: #6a9955;
+        }
+
+        .arch-diagram .cache {
+            color: #ce9178;
+        }
+
+        /* Таблица компонентов */
+        .components-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 2rem 0;
+            background: white;
+            border-radius: 10px;
+            overflow: hidden;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.1);
+        }
+
+        .components-table th {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 1rem;
+            text-align: left;
+        }
+
+        .components-table td {
+            padding: 1rem;
+            border-bottom: 1px solid #eee;
+        }
+
+        .components-table tr:hover {
+            background: #f8f9fa;
+        }
+
+        /* Структура проекта */
+        .project-structure {
+            background: #1e1e2f;
+            color: #fff;
+            padding: 2rem;
+            border-radius: 10px;
+            font-family: 'Courier New', monospace;
+            line-height: 2;
+            overflow-x: auto;
+        }
+
+        .project-structure .folder {
+            color: #dcdcaa;
+        }
+
+        .project-structure .file {
+            color: #a9b7c6;
+        }
+
+        .project-structure .indent {
+            padding-left: 2rem;
+        }
+
+        /* Кнопка скачивания */
+        .download-section {
+            text-align: center;
+            padding: 4rem 0;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+        }
+
+        .download-btn {
+            display: inline-block;
+            padding: 1rem 2rem;
+            background: white;
+            color: #667eea;
+            text-decoration: none;
+            border-radius: 50px;
+            font-weight: 600;
+            font-size: 1.2rem;
+            margin: 1rem;
+            transition: transform 0.3s;
+            border: none;
+            cursor: pointer;
+        }
+
+        .download-btn:hover {
+            transform: scale(1.05);
+        }
+
+        .download-btn i {
+            margin-right: 0.5rem;
+        }
+
+        .download-btn.android {
+            background: #3ddc84;
+            color: white;
+        }
+
+        .download-btn.ios {
+            background: #000;
+            color: white;
+        }
+
+        /* Футер */
+        .footer {
+            background: #1a1a2e;
+            color: white;
+            padding: 2rem;
+            text-align: center;
+        }
+
+        .footer a {
+            color: #667eea;
+            text-decoration: none;
+        }
+
+        .footer a:hover {
+            text-decoration: underline;
+        }
+
+        .back-to-top {
+            position: fixed;
+            bottom: 2rem;
+            right: 2rem;
+            background: #667eea;
+            color: white;
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            border: none;
+            font-size: 1.2rem;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.2);
+            transition: background 0.3s;
+            z-index: 1000;
+        }
+
+        .back-to-top:hover {
+            background: #764ba2;
+        }
+
+        /* Анимации */
+        @keyframes fadeIn {
+            from {
+                opacity: 0;
+                transform: translateY(20px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .fade-in {
+            animation: fadeIn 1s ease-out;
+        }
+    </style>
+</head>
+<body>
+<!-- Кнопка наверх -->
+<div class="back-to-top" onclick="window.scrollTo({top: 0, behavior: 'smooth'})">
+    <i class="fas fa-arrow-up"></i>
+</div>
+
+<!-- Hero секция -->
+<section class="hero">
+    <div class="hero-content fade-in">
+        <div class="logo">
+            <img src="/logo/logo.svg" alt="LFK Logo" style="width: 100%; height: 100%;">
+        </div>
+        <h1>Лечебная Физическая Культура (ЛФК) 🏥</h1>
+        <div class="badges">
+            <span class="badge"><i class="fas fa-tag"></i> Version 1.0.0</span>
+            <span class="badge"><i class="fas fa-balance-scale"></i> MIT License</span>
+            <span class="badge"><i class="fas fa-chart-line"></i> Go Report Card A+</span>
+            <span class="badge"><i class="fas fa-database"></i> Redis</span>
+            <span class="badge"><i class="fas fa-cubes"></i> Kubernetes</span>
+            <span class="badge"><i class="fab fa-docker"></i> Docker</span>
+        </div>
+        <p class="subtitle">
+            Умный помощник для выполнения упражнений лечебной физкультуры
+        </p>
+        <div class="nav-menu">
+            <a href="#about">О проекте</a>
+            <a href="#tech">Технологии</a>
+            <a href="#quickstart">Быстрый старт</a>
+            <a href="#architecture">Архитектура</a>
+            <a href="#api">API</a>
+            <a href="#developer">Разработчик</a>
+        </div>
+    </div>
+</section>
+
+<!-- О проекте -->
+<section id="about" class="container">
+    <div class="section-title">
+        <h2><i class="fas fa-info-circle"></i> 📋 О проекте</h2>
+        <p>LFK — это интеллектуальная система, которая помогает людям правильно выполнять упражнения лечебной физкультуры (ЛФК). Проект использует компьютерное зрение для анализа движений в реальном времени, предоставляет обратную связь и отслеживает прогресс пользователя.</p>
+    </div>
+
+    <div class="features-grid">
+        <div class="feature-card">
+            <div class="feature-icon">
+                <i class="fas fa-video"></i>
+            </div>
+            <h3>Анализ движений</h3>
+            <p>В реальном времени через камеру с помощью компьютерного зрения</p>
+        </div>
+        <div class="feature-card">
+            <div class="feature-icon">
+                <i class="fas fa-comment"></i>
+            </div>
+            <h3>Голосовые подсказки</h3>
+            <p>При неправильном выполнении упражнений</p>
+        </div>
+        <div class="feature-card">
+            <div class="feature-icon">
+                <i class="fas fa-chart-bar"></i>
+            </div>
+            <h3>Отслеживание прогресса</h3>
+            <p>Детальная статистика тренировок</p>
+        </div>
+        <div class="feature-card">
+            <div class="feature-icon">
+                <i class="fas fa-mobile-alt"></i>
+            </div>
+            <h3>Мобильное приложение</h3>
+            <p>Для Android (Kotlin, Jetpack Compose)</p>
+        </div>
+        <div class="feature-card">
+            <div class="feature-icon">
+                <i class="fas fa-bolt"></i>
+            </div>
+            <h3>WebSocket соединение</h3>
+            <p>Мгновенная обратная связь</p>
+        </div>
+        <div class="feature-card">
+            <div class="feature-icon">
+                <i class="fas fa-database"></i>
+            </div>
+            <h3>PostgreSQL</h3>
+            <p>Хранение истории тренировок</p>
+        </div>
+        <div class="feature-card">
+            <div class="feature-icon">
+                <i class="fas fa-bolt"></i>
+            </div>
+            <h3>Redis</h3>
+            <p>Кэширование и очереди задач</p>
+        </div>
+        <div class="feature-card">
+            <div class="feature-icon">
+                <i class="fas fa-chart-line"></i>
+            </div>
+            <h3>Метрики</h3>
+            <p>Мониторинг производительности</p>
+        </div>
+    </div>
+</section>
+
+<!-- Скриншоты приложения -->
+<section class="screenshots">
+    <div class="container">
+        <div class="section-title">
+            <h2><i class="fas fa-mobile-alt"></i> 📱 Интерфейс приложения</h2>
+            <p>Примеры экранов мобильного приложения</p>
+        </div>
+
+        <div class="screenshots-grid">
+            <div class="screenshot-item">
+                <div class="screenshot-placeholder">
+                    <i class="fas fa-sign-in-alt"></i>
+                </div>
+                <div class="screenshot-label">Вход</div>
+            </div>
+            <div class="screenshot-item">
+                <div class="screenshot-placeholder">
+                    <i class="fas fa-user-plus"></i>
+                </div>
+                <div class="screenshot-label">Регистрация</div>
+            </div>
+            <div class="screenshot-item">
+                <div class="screenshot-placeholder">
+                    <i class="fas fa-home"></i>
+                </div>
+                <div class="screenshot-label">Главное меню</div>
+            </div>
+            <div class="screenshot-item">
+                <div class="screenshot-placeholder">
+                    <i class="fas fa-user"></i>
+                </div>
+                <div class="screenshot-label">Профиль</div>
+            </div>
+            <div class="screenshot-item">
+                <div class="screenshot-placeholder">
+                    <i class="fas fa-chart-pie"></i>
+                </div>
+                <div class="screenshot-label">Общая статистика</div>
+            </div>
+            <div class="screenshot-item">
+                <div class="screenshot-placeholder">
+                    <i class="fas fa-calendar-day"></i>
+                </div>
+                <div class="screenshot-label">Дневная статистика</div>
+            </div>
+            <div class="screenshot-item">
+                <div class="screenshot-placeholder">
+                    <i class="fas fa-calendar-week"></i>
+                </div>
+                <div class="screenshot-label">Недельная статистика</div>
+            </div>
+            <div class="screenshot-item">
+                <div class="screenshot-placeholder">
+                    <i class="fas fa-calendar-alt"></i>
+                </div>
+                <div class="screenshot-label">Месячная статистика</div>
+            </div>
+            <div class="screenshot-item">
+                <div class="screenshot-placeholder">
+                    <i class="fas fa-dumbbell"></i>
+                </div>
+                <div class="screenshot-label">Упражнения</div>
+            </div>
+            <div class="screenshot-item">
+                <div class="screenshot-placeholder">
+                    <i class="fas fa-history"></i>
+                </div>
+                <div class="screenshot-label">История</div>
+            </div>
+        </div>
+    </div>
+</section>
+
+<!-- Технологии -->
+<section id="tech" class="container">
+    <div class="section-title">
+        <h2><i class="fas fa-cogs"></i> 🛠 Технологии</h2>
+        <p>Современный стек технологий для высокой производительности</p>
+    </div>
+
+    <h3 class="q-mb-lg">Backend</h3>
+    <div class="tech-grid">
+        <div class="tech-item"><i class="fab fa-golang"></i><span>Go</span></div>
+        <div class="tech-item"><i class="fab fa-python"></i><span>Python</span></div>
+        <div class="tech-item"><i class="fas fa-database"></i><span>PostgreSQL</span></div>
+        <div class="tech-item"><i class="fas fa-bolt"></i><span>Redis</span></div>
+        <div class="tech-item"><i class="fas fa-lock"></i><span>JWT</span></div>
+        <div class="tech-item"><i class="fas fa-plug"></i><span>WebSocket</span></div>
+    </div>
+
+    <h3 class="q-mt-xl q-mb-lg">Computer Vision</h3>
+    <div class="tech-grid">
+        <div class="tech-item"><i class="fas fa-eye"></i><span>MediaPipe</span></div>
+        <div class="tech-item"><i class="fas fa-image"></i><span>OpenCV</span></div>
+        <div class="tech-item"><i class="fab fa-python"></i><span>Flask</span></div>
+    </div>
+
+    <h3 class="q-mt-xl q-mb-lg">Mobile</h3>
+    <div class="tech-grid">
+        <div class="tech-item"><i class="fab fa-android"></i><span>Kotlin</span></div>
+        <div class="tech-item"><i class="fas fa-mobile"></i><span>Jetpack Compose</span></div>
+        <div class="tech-item"><i class="fab fa-android"></i><span>Android</span></div>
+    </div>
+
+    <h3 class="q-mt-xl q-mb-lg">DevOps & Infrastructure</h3>
+    <div class="tech-grid">
+        <div class="tech-item"><i class="fab fa-docker"></i><span>Docker</span></div>
+        <div class="tech-item"><i class="fas fa-cubes"></i><span>Kubernetes</span></div>
+        <div class="tech-item"><i class="fas fa-server"></i><span>Nginx</span></div>
+        <div class="tech-item"><i class="fab fa-github"></i><span>GitHub Actions</span></div>
+    </div>
+</section>
+
+<!-- Быстрый старт -->
+<section id="quickstart" class="quick-start">
+    <div class="container">
+        <div class="section-title">
+            <h2><i class="fas fa-rocket"></i> 🚀 Быстрый старт</h2>
+            <p>Запустите проект за 5 минут</p>
+        </div>
+
+        <h3>Предварительные требования</h3>
+        <div class="tech-grid" style="grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));">
+            <div class="tech-item">Go 1.21+</div>
+            <div class="tech-item">Python 3.10+</div>
+            <div class="tech-item">PostgreSQL 14+</div>
+            <div class="tech-item">Redis 7+</div>
+            <div class="tech-item">Docker & Docker Compose</div>
+            <div class="tech-item">Android Studio</div>
+        </div>
+
+        <h3 class="q-mt-xl">🐳 Быстрый запуск через Docker Compose</h3>
+        <div class="code-block">
+            <button class="copy-btn" onclick="copyToClipboard('docker-commands')">📋 Копировать</button>
+            <pre id="docker-commands">
+<span class="comment"># Клонируйте репозиторий</span>
+<span class="command">git clone https://github.com/gitmonstera/lfk.git</span>
+<span class="command">cd lfk</span>
+
+<span class="comment"># Запустите все сервисы</span>
+<span class="command">docker-compose up -d</span>
+
+<span class="comment"># Проверьте статус</span>
+<span class="command">docker-compose ps</span>
+
+<span class="comment"># Скачать официальный скрипт Docker</span>
+<span class="command">curl -fsSL https://get.docker.com -o get-docker.sh</span>
+
+<span class="comment"># Запустить установку</span>
+<span class="command">sudo sh get-docker.sh</span>
+
+<span class="comment"># Добавить пользователя в группу docker</span>
+<span class="command">sudo usermod -aG docker $USER</span>
+<span class="command">newgrp docker</span>
+
+<span class="comment"># Проверить установку</span>
+<span class="command">docker --version</span>
+<span class="command">docker compose version</span>
+                </pre>
+        </div>
+
+        <h3 class="q-mt-xl">🔧 Ручная установка</h3>
+
+        <h4>1️⃣ Настройка базы данных</h4>
+        <div class="code-block">
+            <button class="copy-btn" onclick="copyToClipboard('db-commands')">📋 Копировать</button>
+            <pre id="db-commands">
+<span class="comment"># Создайте базу данных</span>
+<span class="command">sudo -u postgres psql</span>
+<span class="command">CREATE DATABASE lfkdg;</span>
+<span class="command">\q</span>
+
+<span class="comment"># Примените миграции</span>
+<span class="command">psql -d lfkdg -f database/migrations.sql</span>
+                </pre>
+        </div>
+
+        <h4>2️⃣ Настройка Redis</h4>
+        <div class="code-block">
+            <button class="copy-btn" onclick="copyToClipboard('redis-commands')">📋 Копировать</button>
+            <pre id="redis-commands">
+<span class="comment"># Установка Redis</span>
+<span class="command">sudo apt update</span>
+<span class="command">sudo apt install redis-server</span>
+
+<span class="comment"># Запуск Redis</span>
+<span class="command">sudo systemctl start redis-server</span>
+<span class="command">sudo systemctl enable redis-server</span>
+
+<span class="comment"># Проверка</span>
+<span class="command">redis-cli ping  <span class="comment"># Должно вернуть: PONG</span></span>
+                </pre>
+        </div>
+
+        <h4>3️⃣ Настройка конфигурации</h4>
+        <div class="code-block">
+            <button class="copy-btn" onclick="copyToClipboard('config-commands')">📋 Копировать</button>
+            <pre id="config-commands">
+<span class="comment"># Скопируйте пример конфигурации</span>
+<span class="command">cp configs/config.example.yaml configs/config.yaml</span>
+
+<span class="comment"># Отредактируйте под свои параметры</span>
+<span class="command">nano configs/config.yaml</span>
+                </pre>
+        </div>
+
+        <h4>4️⃣ Запуск Go сервера</h4>
+        <div class="code-block">
+            <button class="copy-btn" onclick="copyToClipboard('go-commands')">📋 Копировать</button>
+            <pre id="go-commands">
+<span class="command">cd backend/cmd</span>
+<span class="command">go mod download</span>
+<span class="command">go run main.go</span>
+
+<span class="comment"># Сервер запустится на http://localhost:8080</span>
+                </pre>
+        </div>
+
+        <h4>5️⃣ Запуск Python процессора</h4>
+        <div class="code-block">
+            <button class="copy-btn" onclick="copyToClipboard('python-commands')">📋 Копировать</button>
+            <pre id="python-commands">
+<span class="command">cd backend/python_processor</span>
+
+<span class="comment"># Создание виртуального окружения</span>
+<span class="command">python3 -m venv venv</span>
+<span class="command">source venv/bin/activate</span>
+
+<span class="comment"># Установка зависимостей</span>
+<span class="command">pip install -r requirements.txt</span>
+
+<span class="comment"># Запуск процессора</span>
+<span class="command">python exercise_detector.py</span>
+
+<span class="comment"># Python сервер запустится на http://localhost:5000</span>
+                </pre>
+        </div>
+
+        <h4>6️⃣ Запуск тестового клиента</h4>
+        <div class="code-block">
+            <button class="copy-btn" onclick="copyToClipboard('client-commands')">📋 Копировать</button>
+            <pre id="client-commands">
+<span class="command">cd backend/python_processor/debug_frames</span>
+<span class="command">source ../venv/bin/activate</span>
+<span class="command">python test_client.py</span>
+                </pre>
+        </div>
+    </div>
+</section>
+
+<!-- Архитектура -->
+<section id="architecture" class="architecture">
+    <div class="container">
+        <div class="section-title">
+            <h2><i class="fas fa-sitemap"></i> 🏗 Архитектура</h2>
+            <p>Масштабируемая и отказоустойчивая архитектура</p>
+        </div>
+
+        <div class="arch-diagram">
+                <pre>
+┌─────────────────┐     ┌─────────────────┐     ┌─────────────────┐
+│   Mobile App    │────▶│   Go Backend    │────▶│  PostgreSQL     │
+│   (Kotlin)      │◀────│   (REST/WS)     │◀────│   Database      │
+└─────────────────┘     └────────┬────────┘     └─────────────────┘
+                                 │
+                                 ▼
+                         ┌─────────────────┐     ┌─────────────────┐
+                         │     Redis       │────▶│   Python CV     │
+                         │   - Cache       │     │   Processors    │
+                         │   - Pub/Sub     │     │   (MediaPipe)   │
+                         │   - Queues      │     └─────────────────┘
+                         └─────────────────┘
+                                 │
+                                 ▼
+                         ┌─────────────────┐
+                         │   WebSocket     │
+                         │    Cluster      │
+                         └─────────────────┘
+                </pre>
+        </div>
+
+        <h3>Ключевые компоненты</h3>
+        <table class="components-table">
+            <thead>
+            <tr>
+                <th>Компонент</th>
+                <th>Назначение</th>
+                <th>Технологии</th>
+            </tr>
+            </thead>
+            <tbody>
+            <tr>
+                <td>API Gateway</td>
+                <td>Маршрутизация запросов, аутентификация</td>
+                <td>Go, Gin, JWT</td>
+            </tr>
+            <tr>
+                <td>WebSocket Hub</td>
+                <td>Управление WebSocket соединениями</td>
+                <td>Go, Gorilla WebSocket</td>
+            </tr>
+            <tr>
+                <td>Redis Cluster</td>
+                <td>Кэширование, очереди, Pub/Sub</td>
+                <td>Redis, Redis Cluster</td>
+            </tr>
+            <tr>
+                <td>CV Processor</td>
+                <td>Анализ видео через камеру</td>
+                <td>Python, MediaPipe, OpenCV</td>
+            </tr>
+            <tr>
+                <td>Database</td>
+                <td>Хранение данных пользователей</td>
+                <td>PostgreSQL</td>
+            </tr>
+            <tr>
+                <td>Metrics</td>
+                <td>Мониторинг производительности</td>
+                <td>Prometheus, Grafana</td>
+            </tr>
+            </tbody>
+        </table>
+
+        <h3 class="q-mt-xl">📁 Структура проекта</h3>
+        <div class="project-structure">
+                <pre>
+📦 LFK
+├── 📂 backend/                          <span class="comment"># Основной бэкенд на Go</span>
+│   ├── 📂 cmd/
+│   │   └── 📄 main.go                    <span class="comment"># Точка входа</span>
+│   ├── 📂 internal/
+│   │   ├── 📂 auth/                      <span class="comment"># JWT аутентификация</span>
+│   │   ├── 📂 handlers/                   <span class="comment"># HTTP обработчики</span>
+│   │   ├── 📂 middleware/                  <span class="comment"># Промежуточное ПО</span>
+│   │   ├── 📂 models/                      <span class="comment"># Модели данных</span>
+│   │   ├── 📂 repository/                   <span class="comment"># Работа с БД</span>
+│   │   ├── 📂 websocket/                    <span class="comment"># WebSocket хаб</span>
+│   │   │   ├── 📄 hub.go
+│   │   │   └── 📄 cluster_hub.go           <span class="comment"># Кластерный WebSocket</span>
+│   │   ├── 📂 redis/                        <span class="comment"># Redis клиент</span>
+│   │   │   ├── 📄 client.go
+│   │   │   ├── 📄 pubsub.go
+│   │   │   └── 📄 queue.go
+│   │   ├── 📂 processor/                    <span class="comment"># Пул Python процессоров</span>
+│   │   │   └── 📄 pool.go
+│   │   └── 📂 metrics/                      <span class="comment"># Метрики и мониторинг</span>
+│   │       └── 📄 metrics.go
+│   ├── 📂 pkg/
+│   │   └── 📂 python_bridge/                <span class="comment"># Клиент для Python</span>
+│   │       └── 📄 client.go
+│   └── 📄 go.mod
+│
+├── 📂 python_processor/                  <span class="comment"># Python модуль для CV</span>
+│   ├── 📂 exercises/
+│   │   ├── 📄 base_exercise.py
+│   │   ├── 📄 fist_exercise.py
+│   │   ├── 📄 fist_index_exercise.py
+│   │   └── 📄 fist_palm_exercise.py
+│   └── 📄 exercise_detector.py
+│
+├── 📂 configs/                           <span class="comment"># Конфигурационные файлы</span>
+│   ├── 📄 config.example.yaml
+│   └── 📄 config.yaml
+│
+├── 📂 deployments/                        <span class="comment"># Деплоймент</span>
+│   ├── 📂 docker/
+│   │   ├── 📂 go/
+│   │   │   └── 📄 Dockerfile
+│   │   └── 📂 python/
+│   │       └── 📄 Dockerfile
+│   ├── 📂 kubernetes/
+│   │   ├── 📄 go-deployment.yaml
+│   │   ├── 📄 python-deployment.yaml
+│   │   ├── 📄 redis-cluster.yaml
+│   │   ├── 📄 postgres-cluster.yaml
+│   │   └── 📂 nginx/
+│   │       └── 📄 nginx.conf
+│   └── 📄 docker-compose.yml
+│
+├── 📂 scripts/                           <span class="comment"># Вспомогательные скрипты</span>
+│   ├── 📄 migrate.sh
+│   └── 📄 seed.sh
+│
+├── 📂 mobile/                            <span class="comment"># Android приложение</span>
+│   └── 📂 app/
+│
+├── 📂 docs/                               <span class="comment"># Документация</span>
+│   └── 📄 API.md
+│
+└── 📄 README.md
+                </pre>
+        </div>
+    </div>
+</section>
+
+<!-- API Endpoints (сокращенно) -->
+<section id="api" class="container">
+    <div class="section-title">
+        <h2><i class="fas fa-plug"></i> 🔌 API Endpoints</h2>
+        <p>Полная документация доступна в разделе API</p>
+    </div>
+
+    <div style="text-align: center; padding: 2rem; background: #f8f9fa; border-radius: 10px;">
+        <i class="fas fa-code" style="font-size: 3rem; color: #667eea; margin-bottom: 1rem;"></i>
+        <p style="margin-bottom: 1rem;">Подробная документация API с примерами запросов</p>
+        <a href="#" style="color: #667eea; text-decoration: none; font-weight: 600;">📖 Открыть документацию API →</a>
+    </div>
+</section>
+
+<!-- Секция скачивания -->
+<section class="download-section">
+    <div class="container">
+        <h2 style="font-size: 2.5rem; margin-bottom: 1rem;">📱 Скачать приложение</h2>
+        <p style="font-size: 1.2rem; margin-bottom: 2rem; opacity: 0.9;">Выберите вашу платформу</p>
+
+        <div>
+            <a href="/downloads/lfk-android.apk" class="download-btn android" download>
+                <i class="fab fa-android"></i> Скачать для Android
+            </a>
+            <a href="#" class="download-btn ios" onclick="alert('iOS версия скоро будет доступна!')">
+                <i class="fab fa-apple"></i> iOS (скоро)
+            </a>
+        </div>
+
+        <p style="margin-top: 2rem; font-size: 0.9rem; opacity: 0.8;">
+            Версия 1.0.0 • Размер: 25 MB • Android 8.0+
+        </p>
+    </div>
+</section>
+
+<!-- Разработчик -->
+<section id="developer" class="container" style="text-align: center; padding: 4rem 2rem;">
+    <div style="max-width: 600px; margin: 0 auto;">
+        <div style="width: 100px; height: 100px; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); border-radius: 50%; margin: 0 auto 1.5rem; display: flex; align-items: center; justify-content: center;">
+            <i class="fas fa-user" style="font-size: 3rem; color: white;"></i>
+        </div>
+        <h2 style="margin-bottom: 0.5rem;">👥 Разработчик</h2>
+        <p style="color: #666; margin-bottom: 1rem;">Full-stack Developer</p>
+        <a href="https://github.com/gitmonstera" style="color: #667eea; text-decoration: none; font-size: 1.2rem;">
+            <i class="fab fa-github"></i> @gitmonstera
+        </a>
+
+        <div style="margin-top: 2rem; padding: 1rem; background: #f8f9fa; border-radius: 10px;">
+            <p style="margin-bottom: 0.5rem;">⭐ Если проект вам полезен, поставьте звездочку!</p>
+            <a href="#" style="color: #667eea; font-size: 1.5rem;">
+                <i class="fas fa-star"></i> Star on GitHub
+            </a>
+        </div>
+    </div>
+</section>
+
+<!-- Футер -->
+<footer class="footer">
+    <div style="margin-bottom: 1rem;">
+        <a href="#" style="margin: 0 0.5rem;"><i class="fab fa-github"></i></a>
+        <a href="#" style="margin: 0 0.5rem;"><i class="fab fa-telegram"></i></a>
+        <a href="#" style="margin: 0 0.5rem;"><i class="fab fa-vk"></i></a>
+    </div>
+    <p>© 2026 LFK. Распространяется под лицензией MIT.</p>
+    <p style="margin-top: 1rem; font-size: 0.8rem; opacity: 0.7;">
+        <a href="#" style="color: #667eea;">⬆ Вернуться к началу</a>
+    </p>
+</footer>
+
+<script>
+    function copyToClipboard(elementId) {
+        const element = document.getElementById(elementId);
+        const text = element.innerText;
+
+        navigator.clipboard.writeText(text).then(() => {
+            alert('Скопировано в буфер обмена!');
+        }).catch(() => {
+            alert('Не удалось скопировать');
+        });
+    }
+</script>
+</body>
+</html>
