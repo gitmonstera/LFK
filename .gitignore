@@ -14,4 +14,62 @@ __pycache__/
 .vscode/
 .idea/
 EOF
+# Сборки
+/dist
+/build
+/*.exe
+/*.exe~
+/*.dll
+/*.so
+/*.dylib
+/*.test
+/*.out
+/*.exe
+/lfk-server
+
+# Зависимости
+/node_modules
+/backend/vendor
+/python_processor/venv
+/python_processor/__pycache__
+/python_processor/*.pyc
+/python_processor/.pytest_cache
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Логи
+*.log
+lfk_python.log
+
+# Docker
+deployments/docker/data/
+
+# Конфиги с секретами (оставляем только примеры)
+/configs/config.local.yaml
+/configs/config.prod.yaml
+.env
+.env.local
+.env.production
+
+# Временные файлы
+/tmp
+/debug_frames
+*.tmp
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Quasar specific
+frontend/.quasar
+frontend/dist
+
+# Backend specific
+backend/coverage
+backend/*.coverprofile
 /backend/python_processor/lfk_python.log
