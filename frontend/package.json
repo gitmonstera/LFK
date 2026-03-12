@@ -1,0 +1,22 @@
+{
+  "name": "lfk-frontend",
+  "version": "1.0.0",
+  "description": "LFK - Лечебная физическая культура",
+  "type": "module",
+  "scripts": {
+    "dev": "quasar dev",
+    "build": "quasar build"
+  },
+  "dependencies": {
+    "quasar": "^2.15.0",
+    "vue": "^3.4.0",
+    "vue-router": "^4.2.0"
+  },
+  "devDependencies": {
+    "@quasar/app-vite": "^1.6.0",
+    "@quasar/cli": "^2.4.0",
+    "@quasar/extras": "^1.16.0",
+    "sass": "^1.70.0",
+    "autoprefixer": "^10.4.0"
+  }
+}

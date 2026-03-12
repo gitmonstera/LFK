@@ -1,0 +1,12 @@
+const routes = [
+  {
+    path: '/',
+    component: () => import('layouts/MainLayout.vue'),
+    children: [
+      { path: '', component: () => import('pages/IndexPage.vue') },
+      { path: 'download', component: () => import('pages/DownloadPage.vue') }
+    ]
+  }
+]
+
+export default routes
