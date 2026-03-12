@@ -46,6 +46,8 @@
             unelevated
             to="/download"
           />
+          <q-btn to="/login" label="Войти" flat class="nav-btn" v-if="!isAuthenticated" />
+          <q-btn to="/profile" label="Профиль" flat class="nav-btn" v-else />
         </div>
 
         <!-- Мобильное меню -->
@@ -69,6 +71,16 @@
                 <q-item clickable v-close-popup to="/download">
                   <q-item-section avatar><q-icon name="fitness_center" color="primary" /></q-item-section>
                   <q-item-section class="text-primary">Начать тренировку</q-item-section>
+                </q-item>
+                <q-separator />
+                <q-item clickable v-close-popup to="/login" v-if="!isAuthenticated">
+                  <q-item-section avatar><q-icon name="login" /></q-item-section>
+                  <q-item-section>Войти</q-item-section>
+                </q-item>
+
+                <q-item clickable v-close-popup to="/profile" v-else>
+                  <q-item-section avatar><q-icon name="person" /></q-item-section>
+                  <q-item-section>Профиль</q-item-section>
                 </q-item>
               </q-list>
             </q-menu>
@@ -143,7 +155,7 @@
 </template>
 
 <script setup>
-import { ref, onMounted, onUnmounted } from 'vue'
+import {ref, onMounted, onUnmounted, computed} from 'vue'
 
 const leftDrawerOpen = ref(false)
 const showScrollButton = ref(false)
@@ -157,6 +169,10 @@ const handleScroll = () => {
   showScrollButton.value = window.scrollY > 300
   isScrolled.value = window.scrollY > 50
 }
+
+const isAuthenticated = computed(() => {
+  return !!(localStorage.getItem('token') || sessionStorage.getItem('token'))
+})
 
 onMounted(() => {
   window.addEventListener('scroll', handleScroll)

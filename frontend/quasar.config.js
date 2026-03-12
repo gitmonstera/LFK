@@ -1,4 +1,4 @@
-export default function (ctx) {
+module.exports = function (ctx) {
   return {
     boot: [],
     css: ['app.scss'],
@@ -16,16 +16,17 @@ export default function (ctx) {
       publicPath: '/',
       distDir: 'dist',
       env: {
-        API_URL: ctx.dev ? 'http://localhost:9000' : '/api'  // Go на 9000
+        API_URL: ctx.dev ? 'http://localhost:9000' : '/api'
       }
     },
     devServer: {
       open: true,
-      port: 8080,  // Quasar на 8080
+      port: 8080,
       proxy: {
         '/api': {
-          target: 'http://localhost:9000',  // Прокси на Go (9000)
+          target: 'http://localhost:9000',  // Go backend на 9000
           changeOrigin: true,
+          logLevel: 'debug'  // Добавьте для отладки
         }
       }
     },
