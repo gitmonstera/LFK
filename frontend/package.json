@@ -9,7 +9,7 @@
   "dependencies": {
     "quasar": "^2.15.0",
     "vue": "^3.4.0",
-    "vue-router": "^4.2.0",
+    "vue-router": "4.2.0",
     "axios": "^1.6.0"
   },
   "devDependencies": {
