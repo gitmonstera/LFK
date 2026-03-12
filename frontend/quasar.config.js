@@ -10,13 +10,15 @@ module.exports = function (ctx) {
     build: {
       target: {
         browser: ['es2019', 'edge88', 'firefox78', 'chrome87', 'safari13.1'],
-        node: 'node20'
+        node: 'node18'
       },
       vueRouterMode: 'history',
       publicPath: '/',
       distDir: 'dist',
       env: {
-        API_URL: ctx.dev ? 'http://localhost:9000' : '/api'
+        API_URL: ctx.dev ? 'http://localhost:9000' : 'http://80.93.63.206',
+        WS_URL: ctx.dev ? 'ws://localhost:9000' : 'ws://80.93.63.206',
+        NODE_ENV: ctx.dev ? 'development' : 'production'
       }
     },
     devServer: {
@@ -24,9 +26,8 @@ module.exports = function (ctx) {
       port: 8080,
       proxy: {
         '/api': {
-          target: 'http://localhost:9000',  // Go backend на 9000
+          target: 'http://localhost:9000',
           changeOrigin: true,
-          logLevel: 'debug'  // Добавьте для отладки
         }
       }
     },

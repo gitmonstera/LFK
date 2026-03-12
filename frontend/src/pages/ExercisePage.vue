@@ -433,9 +433,14 @@ const connectWebSocket = () => {
 
   connectionStatus.value = 'connecting'
 
-  // Формируем URL для WebSocket
+  // Используем WS_URL из конфига - он уже правильный для каждого окружения!
+  // В dev: ws://localhost:9000
+  // В prod: ws://80.93.63.206:8080
   const wsUrl = `${WS_URL}/ws/exercise/${exerciseId.value}?token=${token}`
+
   console.log('🔌 Подключение к WebSocket:', wsUrl)
+  console.log('📡 Режим:', isProduction ? 'PRODUCTION' : 'DEVELOPMENT')
+  console.log('🌐 Базовый WS URL:', WS_URL)
 
   try {
     ws.value = new WebSocket(wsUrl)
@@ -463,11 +468,9 @@ const connectWebSocket = () => {
         raisedFingers.value = data.raised_fingers || 0
         serverMessage.value = data.message || ''
 
-        // Определяем класс сообщения
         messageClass.value = serverMessage.value.includes('✅') ? 'success'
           : serverMessage.value.includes('❌') ? 'error' : 'info'
 
-        // Для fist-palm
         if (exerciseId.value === 'fist-palm' && data.structured) {
           const prevCycle = currentCycle.value
           currentCycle.value = data.structured.current_cycle || 0
@@ -502,7 +505,7 @@ const connectWebSocket = () => {
       connectionStatus.value = 'disconnected'
       $q.notify({
         type: 'negative',
-        message: `Ошибка подключения к ${serverUrl.value}`,
+        message: `Ошибка подключения к ${WS_URL}`,
         position: 'top'
       })
     }
@@ -513,8 +516,14 @@ const connectWebSocket = () => {
     }
 
   } catch (error) {
-    console.error('Error creating WebSocket:', error)
+    console.error('❌ Ошибка создания WebSocket:', error)
     connectionStatus.value = 'disconnected'
+
+    $q.notify({
+      type: 'negative',
+      message: `Ошибка подключения к ${WS_URL}`,
+      position: 'top'
+    })
   }
 }
 
