@@ -17,6 +17,7 @@ import (
 	"os"
 	"os/signal"
 	"path/filepath"
+	"strings"
 	"syscall"
 	"time"
 
@@ -165,36 +166,10 @@ func setupRouter(
 		SkipPaths: []string{"/health", "/metrics"},
 	}))
 
-	// ============ СТАТИЧЕСКИЕ ФАЙЛЫ И ГЛАВНАЯ ============
-	// Получаем текущую рабочую директорию (где лежит main.go)
-	wd, err := os.Getwd()
-	if err != nil {
-		log.Printf("Error getting working directory: %v", err)
-	} else {
-		// Путь к папке web (она рядом с main.go)
-		webPath := filepath.Join(wd, "web")
-
-		// Обслуживание статических файлов из папки web/downloads
-		downloadsPath := filepath.Join(webPath, "downloads")
-		router.Static("/downloads", downloadsPath)
-		log.Printf("Serving downloads from: %s", downloadsPath)
-
-		// Обслуживание логотипов из папки web/logo
-		logoPath := filepath.Join(webPath, "logo")
-		router.Static("/logo", logoPath)
-		log.Printf("Serving logos from: %s", logoPath)
-	}
-
-	// Главная страница (index.html рядом с main.go)
-	router.GET("/", func(c *gin.Context) {
-		indexPath := filepath.Join(wd, "index.html")
-		log.Printf("Serving index from: %s", indexPath)
-		c.File(indexPath)
-	})
-	// ============ МЕТРИКИ ============
+	// ============ МЕТРИКИ (ДО СТАТИКИ!) ============
 	router.GET("/metrics", gin.WrapH(promhttp.Handler()))
 
-	// ============ ПУБЛИЧНЫЕ API МАРШРУТЫ ============
+	// ============ ПУБЛИЧНЫЕ API МАРШРУТЫ (ДО СТАТИКИ!) ============
 	public := router.Group("/api")
 	{
 		public.POST("/register", userHandler.Register)
@@ -206,7 +181,7 @@ func setupRouter(
 		public.GET("/user/check/username", userHandler.CheckUsername)
 	}
 
-	// ============ ЗАЩИЩЕННЫЕ API МАРШРУТЫ ============
+	// ============ ЗАЩИЩЕННЫЕ API МАРШРУТЫ (ДО СТАТИКИ!) ============
 	protected := router.Group("/api")
 	protected.Use(middleware.AuthMiddleware(cfg.Auth.JWTSecret))
 	{
@@ -253,6 +228,51 @@ func setupRouter(
 		ws.GET("/exercise/fist-palm", func(c *gin.Context) {
 			exerciseHandler.HandleWebSocket(c.Writer, c.Request, "fist-palm")
 		})
+	}
+
+	// ============ СТАТИЧЕСКИЕ ФАЙЛЫ (для всех не найденных маршрутов) ============
+	wd, err := os.Getwd()
+	if err != nil {
+		log.Printf("Error getting working directory: %v", err)
+	} else {
+		webPath := filepath.Join(wd, "web")
+
+		// Проверяем существование папки web
+		if _, err := os.Stat(webPath); os.IsNotExist(err) {
+			webPath = wd
+			log.Printf("Web folder not found, using current directory: %s", wd)
+		}
+
+		// Используем NoRoute для обработки всех не найденных маршрутов
+		router.NoRoute(func(c *gin.Context) {
+			// Проверяем, не API ли это (на всякий случай)
+			path := c.Request.URL.Path
+			if strings.HasPrefix(path, "/api") ||
+				strings.HasPrefix(path, "/ws") ||
+				strings.HasPrefix(path, "/metrics") {
+				c.JSON(404, gin.H{"error": "Not found"})
+				return
+			}
+
+			// Пытаемся найти файл в webPath
+			filePath := filepath.Join(webPath, path)
+			if _, err := os.Stat(filePath); err == nil {
+				c.File(filePath)
+				return
+			}
+
+			// Если файл не найден, отдаем index.html (для SPA)
+			indexPath := filepath.Join(webPath, "index.html")
+			if _, err := os.Stat(indexPath); err == nil {
+				c.File(indexPath)
+				return
+			}
+
+			// Если ничего не нашли - 404
+			c.String(404, "Not found")
+		})
+
+		log.Printf("✅ Serving static files from: %s", webPath)
 	}
 
 	return router

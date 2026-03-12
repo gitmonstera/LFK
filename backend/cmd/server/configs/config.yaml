@@ -2,7 +2,7 @@
 server:
   name: "lfk-backend"
   environment: "development"  # development, staging, production
-  http_port: 9000
+  http_port: 8080
   grpc_port: 50051
   shutdown_timeout: 30s
   instances:
