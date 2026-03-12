@@ -19,6 +19,7 @@ const routes = [
     children: [
       { path: '', component: () => import('pages/ProfilePage.vue') },
       { path: 'exercises', component: () => import('pages/ExercisesPage.vue') },
+      { path: 'exercise/:id', component: () => import('pages/ExercisePage.vue') },
     ]
   }
 ]

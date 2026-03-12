@@ -331,16 +331,8 @@ const goToExercise = (exercise) => {
 
 // Начать упражнение
 const startExercise = (exercise) => {
-  $q.notify({
-    type: 'info',
-    message: `Запуск упражнения "${exercise.name}"`,
-    position: 'top'
-  })
-  // Здесь будет логика запуска тренировки
   showExerciseDialog.value = false
-
-  // В будущем здесь будет переход на страницу выполнения упражнения
-  // router.push(`/exercise/${exercise.exercise_id}`)
+  router.push(`/profile/exercise/${exercise.exercise_id}`)
 }
 
 // Загрузка при монтировании
