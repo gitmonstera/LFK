@@ -193,7 +193,7 @@ func LoadConfig() (*Config, error) {
 
 	// Устанавливаем значения по умолчанию, если они не заданы
 	if config.Server.HTTPPort == 0 {
-		config.Server.HTTPPort = 8080
+		config.Server.HTTPPort = 9000
 	}
 	if config.WebSocket.PingInterval == 0 {
 		config.WebSocket.PingInterval = 30 * time.Second
