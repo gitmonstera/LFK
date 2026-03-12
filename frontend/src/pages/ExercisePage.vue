@@ -7,6 +7,8 @@
           <q-btn flat round dense icon="arrow_back" @click="confirmExit" class="q-mr-sm text-white" />
           <div class="text-h5 text-white">{{ exerciseName }}</div>
           <q-space />
+
+          <!-- Статус подключения -->
           <q-chip v-if="connectionStatus === 'connected'" color="positive" text-color="white" icon="wifi">
             Подключено
           </q-chip>
@@ -15,6 +17,14 @@
           </q-chip>
           <q-chip v-else color="negative" text-color="white" icon="wifi_off">
             Отключено
+          </q-chip>
+
+          <!-- Индикатор режима -->
+          <q-chip v-if="isProduction" color="primary" text-color="white" icon="cloud" class="q-ml-sm">
+            PROD
+          </q-chip>
+          <q-chip v-else color="secondary" text-color="white" icon="code" class="q-ml-sm">
+            DEV
           </q-chip>
         </div>
       </div>
@@ -31,6 +41,7 @@
               <div v-if="!cameraReady" class="camera-loading">
                 <q-spinner size="50px" color="white" />
                 <p class="text-white q-mt-md">Запуск камеры...</p>
+                <p class="text-grey-4 text-caption">Пожалуйста, разрешите доступ к камере</p>
               </div>
 
               <!-- Видео с сервера (обработанное) -->
@@ -82,6 +93,19 @@
               <q-card-section>
                 <div class="text-h6">Прогресс упражнения</div>
                 <q-separator class="q-my-md" />
+
+                <!-- Информация о сервере -->
+                <div class="server-info q-mb-md">
+                  <q-item dense>
+                    <q-item-section avatar>
+                      <q-icon :name="isProduction ? 'cloud' : 'code'" :color="isProduction ? 'primary' : 'secondary'" />
+                    </q-item-section>
+                    <q-item-section>
+                      <q-item-label>Сервер</q-item-label>
+                      <q-item-label caption class="text-grey-4">{{ serverUrl }}</q-item-label>
+                    </q-item-section>
+                  </q-item>
+                </div>
 
                 <!-- Для упражнения "Кулак-ладонь" (fist-palm) -->
                 <template v-if="exerciseId === 'fist-palm'">
@@ -197,23 +221,55 @@
 import { ref, onMounted, onBeforeUnmount, computed } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useQuasar } from 'quasar'
-import { api } from 'src/boot/axios'
+import axios from 'axios'
 
 const $q = useQuasar()
 const route = useRoute()
 const router = useRouter()
 
-// Параметры
-const exerciseId = route.params.id
+// ==================== КОНФИГУРАЦИЯ ====================
+// Просто берем из process.env - работает и в dev и в prod!
+const API_URL = process.env.API_URL || 'http://localhost:9000'
+const WS_URL = process.env.WS_URL || 'ws://localhost:9000'
+const isProduction = process.env.NODE_ENV === 'production'
+
+console.log('🚀 Режим:', isProduction ? 'PRODUCTION' : 'DEVELOPMENT')
+console.log('📡 API URL:', API_URL)
+console.log('🔌 WebSocket URL:', WS_URL)
+
+// Создаем axios instance
+const api = axios.create({
+  baseURL: API_URL,
+  timeout: 30000,
+  headers: {
+    'Content-Type': 'application/json'
+  }
+})
+
+// Добавляем токен к запросам
+api.interceptors.request.use(config => {
+  const token = localStorage.getItem('token') || sessionStorage.getItem('token')
+  if (token) {
+    config.headers.Authorization = `Bearer ${token}`
+  }
+  // Добавляем /api если нужно
+  if (!config.url.startsWith('/api')) {
+    config.url = `/api${config.url}`
+  }
+  return config
+})
+
+// ==================== СОСТОЯНИЕ ====================
+const exerciseId = computed(() => route.params.id)
 const exerciseName = ref('')
 
-// Состояние WebSocket
+// WebSocket
 const ws = ref(null)
 const connectionStatus = ref('disconnected')
 const lastMessageTime = ref(Date.now())
 const connectionCheckInterval = ref(null)
 
-// Состояние камеры
+// Камера
 const videoRef = ref(null)
 const cameraReady = ref(false)
 const showLocalVideo = ref(true)
@@ -227,20 +283,19 @@ const raisedFingers = ref(0)
 const serverMessage = ref('')
 const messageClass = ref('')
 
-// Для fist-palm упражнения
+// Для fist-palm
 const currentCycle = ref(0)
 const totalCycles = ref(5)
 const countdown = ref(null)
 const currentStepIndex = ref(-1)
 const exerciseCompleted = ref(false)
 
-// Статистика тренировки
+// Тренировка
 const sessionId = ref(null)
 const savingStats = ref(false)
 const setsCompleted = ref(0)
-const statsSavedForCycle = ref(new Set())
 
-// UI состояния
+// UI
 const showExitDialog = ref(false)
 
 // Шаги для fist-palm
@@ -251,18 +306,21 @@ const exerciseSteps = [
   { name: 'Держите ладонь', state: 'holding_palm' }
 ]
 
-// Вычисляемые свойства
+// ==================== ВЫЧИСЛЯЕМЫЕ СВОЙСТВА ====================
 const messageIcon = computed(() => {
   if (serverMessage.value.includes('✅') || serverMessage.value.includes('поздравляю')) {
     return 'check_circle'
   } else if (serverMessage.value.includes('❌') || serverMessage.value.includes('ошибка')) {
     return 'error'
-  } else {
-    return 'info'
   }
+  return 'info'
 })
 
-// Функции
+const serverUrl = computed(() => {
+  return isProduction ? '80.93.63.206:8080' : 'localhost:9000'
+})
+
+// ==================== ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ ====================
 const getFingerIcon = (index) => {
   const icons = ['thumb_up', 'index', 'middle', 'ring', 'mic']
   return icons[index] || 'fingers'
@@ -273,10 +331,10 @@ const getFingerName = (index) => {
   return names[index] || ''
 }
 
-// Загрузка информации об упражнении
+// ==================== ЗАГРУЗКА ДАННЫХ ====================
 const loadExerciseInfo = async () => {
   try {
-    const response = await api.get('/api/get_exercise_list')
+    const response = await api.get('/get_exercise_list')
     let exercisesData = []
     if (response.data && response.data.items) {
       exercisesData = response.data.items
@@ -284,23 +342,19 @@ const loadExerciseInfo = async () => {
       exercisesData = response.data
     }
 
-    const exercise = exercisesData.find(ex => ex.exercise_id === exerciseId)
-    if (exercise) {
-      exerciseName.value = exercise.name
-    } else {
-      exerciseName.value = 'Упражнение'
-    }
+    const exercise = exercisesData.find(ex => ex.exercise_id === exerciseId.value)
+    exerciseName.value = exercise?.name || 'Упражнение'
   } catch (error) {
     console.error('Error loading exercise info:', error)
   }
 }
 
-// Начать тренировку
+// ==================== РАБОТА С ТРЕНИРОВКОЙ ====================
 const startWorkout = async () => {
   try {
-    const response = await api.post('/api/workout/start')
+    const response = await api.post('/workout/start')
     sessionId.value = response.data.id
-    console.log('Тренировка начата:', sessionId.value)
+    console.log('✅ Тренировка начата:', sessionId.value)
   } catch (error) {
     console.error('Error starting workout:', error)
     $q.notify({
@@ -310,53 +364,32 @@ const startWorkout = async () => {
   }
 }
 
-// Завершить тренировку
 const endWorkout = async () => {
   if (!sessionId.value) return
-
   try {
-    await api.post('/api/workout/end', { session_id: sessionId.value })
-    console.log('Тренировка завершена')
+    await api.post('/workout/end', { session_id: sessionId.value })
+    console.log('✅ Тренировка завершена')
   } catch (error) {
     console.error('Error ending workout:', error)
   }
 }
 
-// Добавить выполненное упражнение
-const addExerciseSet = async (repetitions, duration, accuracy) => {
-  if (!sessionId.value) return false
-
-  savingStats.value = true
-  try {
-    await api.post('/api/workout/exercise', {
-      session_id: sessionId.value,
-      exercise_id: exerciseId,
-      actual_repetitions: repetitions,
-      actual_duration: duration,
-      accuracy_score: accuracy
-    })
-    console.log('Статистика сохранена')
-    return true
-  } catch (error) {
-    console.error('Error saving exercise stats:', error)
+// ==================== КАМЕРА ====================
+const checkCameraSupport = () => {
+  if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+    $q.dialog({
+      title: '❌ Камера не поддерживается',
+      message: 'Ваш браузер не поддерживает доступ к камере. Используйте Chrome, Firefox или Safari.',
+      persistent: true
+    }).onOk(() => router.push('/profile/exercises'))
     return false
-  } finally {
-    savingStats.value = false
   }
+  return true
 }
 
-// Сбросить упражнение на сервере
-const resetExercise = async () => {
-  try {
-    await api.post('/api/exercise/reset', { exercise_type: exerciseId })
-    console.log('Упражнение сброшено')
-  } catch (error) {
-    console.error('Error resetting exercise:', error)
-  }
-}
-
-// Инициализация камеры
 const initCamera = async () => {
+  if (!checkCameraSupport()) return
+
   try {
     const stream = await navigator.mediaDevices.getUserMedia({
       video: {
@@ -369,7 +402,6 @@ const initCamera = async () => {
 
     if (videoRef.value) {
       videoRef.value.srcObject = stream
-
       videoRef.value.onloadedmetadata = () => {
         videoRef.value.play()
         cameraReady.value = true
@@ -377,15 +409,116 @@ const initCamera = async () => {
       }
     }
   } catch (error) {
-    console.error('❌ Ошибка доступа к камере:', error)
-    $q.notify({
-      type: 'negative',
-      message: 'Не удалось получить доступ к камере'
-    })
+    console.error('❌ Ошибка камеры:', error)
+
+    let message = 'Не удалось получить доступ к камере.'
+    if (error.name === 'NotAllowedError') {
+      message = 'Доступ к камере запрещен. Разрешите доступ в настройках браузера.'
+    } else if (error.name === 'NotFoundError') {
+      message = 'Камера не найдена.'
+    }
+
+    $q.dialog({ title: '❌ Ошибка камеры', message, persistent: true })
+      .onOk(() => router.push('/profile/exercises'))
   }
 }
 
-// Отправка кадров на сервер
+// ==================== WEBSOCKET ====================
+const connectWebSocket = () => {
+  const token = localStorage.getItem('token') || sessionStorage.getItem('token')
+  if (!token) {
+    router.push('/login')
+    return
+  }
+
+  connectionStatus.value = 'connecting'
+
+  // Формируем URL для WebSocket
+  const wsUrl = `${WS_URL}/ws/exercise/${exerciseId.value}?token=${token}`
+  console.log('🔌 Подключение к WebSocket:', wsUrl)
+
+  try {
+    ws.value = new WebSocket(wsUrl)
+
+    ws.value.onopen = () => {
+      console.log('✅ WebSocket подключен')
+      connectionStatus.value = 'connected'
+      lastMessageTime.value = Date.now()
+      startWorkout()
+      startFrameCapture()
+    }
+
+    ws.value.onmessage = (event) => {
+      lastMessageTime.value = Date.now()
+
+      try {
+        const data = JSON.parse(event.data)
+
+        if (data.processed_frame) {
+          processedFrame.value = `data:image/jpeg;base64,${data.processed_frame}`
+        }
+
+        handDetected.value = data.hand_detected
+        fingerStates.value = data.finger_states || []
+        raisedFingers.value = data.raised_fingers || 0
+        serverMessage.value = data.message || ''
+
+        // Определяем класс сообщения
+        messageClass.value = serverMessage.value.includes('✅') ? 'success'
+          : serverMessage.value.includes('❌') ? 'error' : 'info'
+
+        // Для fist-palm
+        if (exerciseId.value === 'fist-palm' && data.structured) {
+          const prevCycle = currentCycle.value
+          currentCycle.value = data.structured.current_cycle || 0
+          totalCycles.value = data.structured.total_cycles || 5
+          countdown.value = data.structured.countdown
+
+          const state = data.structured.state
+          currentStepIndex.value = exerciseSteps.findIndex(s => s.state === state)
+
+          if (currentCycle.value > prevCycle && prevCycle > 0) {
+            setsCompleted.value = currentCycle.value
+            $q.notify({
+              type: 'positive',
+              message: `✅ Цикл ${currentCycle.value}/${totalCycles.value} завершен!`,
+              position: 'top',
+              timeout: 1000
+            })
+          }
+
+          if (data.structured.completed && !exerciseCompleted.value) {
+            exerciseCompleted.value = true
+            handleExerciseComplete()
+          }
+        }
+      } catch (error) {
+        console.error('Error parsing message:', error)
+      }
+    }
+
+    ws.value.onerror = (error) => {
+      console.error('❌ WebSocket error:', error)
+      connectionStatus.value = 'disconnected'
+      $q.notify({
+        type: 'negative',
+        message: `Ошибка подключения к ${serverUrl.value}`,
+        position: 'top'
+      })
+    }
+
+    ws.value.onclose = () => {
+      console.log('WebSocket closed')
+      connectionStatus.value = 'disconnected'
+    }
+
+  } catch (error) {
+    console.error('Error creating WebSocket:', error)
+    connectionStatus.value = 'disconnected'
+  }
+}
+
+// ==================== ОТПРАВКА КАДРОВ ====================
 const startFrameCapture = () => {
   if (!videoRef.value || !ws.value) return
 
@@ -404,10 +537,9 @@ const startFrameCapture = () => {
         const reader = new FileReader()
         reader.onloadend = () => {
           const base64data = reader.result.split(',')[1]
-
           ws.value.send(JSON.stringify({
             frame: base64data,
-            exercise_type: exerciseId
+            exercise_type: exerciseId.value
           }))
         }
         reader.readAsDataURL(blob)
@@ -419,134 +551,7 @@ const startFrameCapture = () => {
   }, 200)
 }
 
-// Проверка соединения
-const startConnectionCheck = () => {
-  connectionCheckInterval.value = setInterval(() => {
-    const timeSinceLastMessage = Date.now() - lastMessageTime.value
-
-    if (timeSinceLastMessage > 10000 && connectionStatus.value === 'connected') {
-      console.log('No messages for 10 seconds, reconnecting...')
-      reconnect()
-    }
-  }, 5000)
-}
-
-// Переподключение
-const reconnect = () => {
-  if (ws.value) {
-    ws.value.close()
-  }
-
-  if (frameInterval.value) {
-    clearInterval(frameInterval.value)
-  }
-
-  setTimeout(() => {
-    connectWebSocket()
-  }, 1000)
-}
-
-// Подключение WebSocket
-const connectWebSocket = () => {
-  const token = localStorage.getItem('token') || sessionStorage.getItem('token')
-  if (!token) {
-    router.push('/login')
-    return
-  }
-
-  connectionStatus.value = 'connecting'
-
-  const wsUrl = process.env.NODE_ENV === 'production'
-    ? `wss://${window.location.host}/ws/exercise/${exerciseId}`
-    : `ws://localhost:9000/ws/exercise/${exerciseId}`
-
-  console.log('Connecting to:', wsUrl)
-
-  ws.value = new WebSocket(`${wsUrl}?token=${token}`)
-
-  ws.value.onopen = () => {
-    console.log('✅ WebSocket connected')
-    connectionStatus.value = 'connected'
-    lastMessageTime.value = Date.now()
-    startConnectionCheck()
-    startWorkout()
-    startFrameCapture()
-  }
-
-  ws.value.onmessage = (event) => {
-    lastMessageTime.value = Date.now()
-
-    try {
-      const data = JSON.parse(event.data)
-
-      if (data.processed_frame) {
-        processedFrame.value = `data:image/jpeg;base64,${data.processed_frame}`
-      }
-
-      handDetected.value = data.hand_detected
-      fingerStates.value = data.finger_states || []
-      raisedFingers.value = data.raised_fingers || 0
-      serverMessage.value = data.message || ''
-
-      if (serverMessage.value.includes('✅')) {
-        messageClass.value = 'success'
-      } else if (serverMessage.value.includes('❌')) {
-        messageClass.value = 'error'
-      } else {
-        messageClass.value = 'info'
-      }
-
-      if (exerciseId === 'fist-palm' && data.structured) {
-        const prevCycle = currentCycle.value
-        currentCycle.value = data.structured.current_cycle || 0
-        totalCycles.value = data.structured.total_cycles || 5
-        countdown.value = data.structured.countdown
-
-        const state = data.structured.state
-        const stepIndex = exerciseSteps.findIndex(s => s.state === state)
-        currentStepIndex.value = stepIndex
-
-        // Отслеживаем завершение цикла
-        if (currentCycle.value > prevCycle && prevCycle > 0) {
-          setsCompleted.value = currentCycle.value
-          $q.notify({
-            type: 'positive',
-            message: `✅ Цикл ${currentCycle.value}/${totalCycles.value} завершен!`,
-            position: 'top',
-            timeout: 1000
-          })
-        }
-
-        // Проверяем завершение упражнения
-        if (data.structured.completed && !exerciseCompleted.value) {
-          handleExerciseComplete()
-        }
-      }
-    } catch (error) {
-      console.error('Error parsing message:', error)
-    }
-  }
-
-  ws.value.onerror = (error) => {
-    console.error('❌ WebSocket error:', error)
-    connectionStatus.value = 'disconnected'
-    $q.notify({
-      type: 'negative',
-      message: 'Ошибка WebSocket соединения'
-    })
-  }
-
-  ws.value.onclose = () => {
-    console.log('WebSocket closed')
-    connectionStatus.value = 'disconnected'
-
-    if (connectionCheckInterval.value) {
-      clearInterval(connectionCheckInterval.value)
-    }
-  }
-}
-
-// Обработка завершения упражнения
+// ==================== ОБРАБОТКА ЗАВЕРШЕНИЯ ====================
 const handleExerciseComplete = () => {
   exerciseCompleted.value = true
 
@@ -561,83 +566,40 @@ const handleExerciseComplete = () => {
 
   $q.dialog({
     title: '🎉 Поздравляем!',
-    message: 'Упражнение успешно выполнено. Хотите повторить или вернуться к списку?',
-    cancel: {
-      label: 'К списку',
-      color: 'primary',
-      flat: true
-    },
-    ok: {
-      label: 'Повторить',
-      color: 'positive',
-      flat: true
-    },
+    message: 'Упражнение выполнено. Повторить или вернуться?',
+    cancel: { label: 'К списку', color: 'primary', flat: true },
+    ok: { label: 'Повторить', color: 'positive', flat: true },
     persistent: true
   }).onOk(() => {
-    resetAndRestart()
+    // Повтор
+    exerciseCompleted.value = false
+    currentCycle.value = 0
+    currentStepIndex.value = -1
+    connectWebSocket()
   }).onCancel(() => {
     exitExercise()
   })
 }
 
-// Сброс и повторное выполнение
-const resetAndRestart = async () => {
-  exerciseCompleted.value = false
-  currentCycle.value = 0
-  currentStepIndex.value = -1
-  countdown.value = null
-  statsSavedForCycle.value.clear()
-  setsCompleted.value = 0
-
-  await resetExercise()
-
-  if (ws.value) {
-    ws.value.close()
-  }
-
-  if (frameInterval.value) {
-    clearInterval(frameInterval.value)
-  }
-
-  connectWebSocket()
-}
-
-// Досрочное завершение
 const endWorkoutEarly = () => {
   showExitDialog.value = true
 }
 
-// Выход из упражнения
 const exitExercise = async () => {
-  $q.loading.show({
-    message: 'Завершение тренировки...'
-  })
+  $q.loading.show({ message: 'Завершение тренировки...' })
 
-  if (sessionId.value) {
-    await endWorkout()
-  }
+  await endWorkout()
 
-  if (ws.value) {
-    ws.value.close()
-  }
-
-  if (frameInterval.value) {
-    clearInterval(frameInterval.value)
-  }
-
+  if (ws.value) ws.value.close()
+  if (frameInterval.value) clearInterval(frameInterval.value)
   if (videoRef.value?.srcObject) {
     videoRef.value.srcObject.getTracks().forEach(track => track.stop())
-  }
-
-  if (connectionCheckInterval.value) {
-    clearInterval(connectionCheckInterval.value)
   }
 
   $q.loading.hide()
   router.push('/profile/exercises')
 }
 
-// Подтверждение выхода
 const confirmExit = () => {
   if (exerciseCompleted.value) {
     exitExercise()
@@ -646,44 +608,25 @@ const confirmExit = () => {
   }
 }
 
-// Обработка закрытия страницы
-const handleBeforeUnload = (event) => {
-  if (!exerciseCompleted.value && sessionId.value) {
-    event.preventDefault()
-    event.returnValue = 'Тренировка еще не завершена. Вы уверены?'
-  }
-}
-
-// Очистка ресурсов
+// ==================== ОЧИСТКА ====================
 const cleanup = () => {
-  if (frameInterval.value) {
-    clearInterval(frameInterval.value)
-  }
-
-  if (connectionCheckInterval.value) {
-    clearInterval(connectionCheckInterval.value)
-  }
-
-  if (ws.value) {
-    ws.value.close()
-  }
-
+  if (frameInterval.value) clearInterval(frameInterval.value)
+  if (ws.value) ws.value.close()
   if (videoRef.value?.srcObject) {
     videoRef.value.srcObject.getTracks().forEach(track => track.stop())
   }
 }
 
-// Монтирование компонента
+// ==================== ХУКИ ЖИЗНЕННОГО ЦИКЛА ====================
 onMounted(async () => {
-  window.addEventListener('beforeunload', handleBeforeUnload)
   await loadExerciseInfo()
-  await initCamera()
-  connectWebSocket()
+  setTimeout(async () => {
+    await initCamera()
+    connectWebSocket()
+  }, 500)
 })
 
-// Демонтирование
 onBeforeUnmount(() => {
-  window.removeEventListener('beforeunload', handleBeforeUnload)
   cleanup()
 })
 </script>
@@ -692,11 +635,9 @@ onBeforeUnmount(() => {
 .exercise-page {
   min-height: 100vh;
   background: #0a0a1f;
-  color: white;
 
   .header {
     background: linear-gradient(135deg, #667eea, #764ba2);
-    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
     position: fixed;
     top: 0;
     left: 0;
@@ -729,22 +670,13 @@ onBeforeUnmount(() => {
       object-fit: cover;
     }
 
-    .local-video {
-      position: absolute;
-      top: 0;
-      left: 0;
-
-      &.hidden {
-        opacity: 0;
-      }
+    .local-video.hidden {
+      opacity: 0;
     }
 
     .camera-loading {
       position: absolute;
-      top: 0;
-      left: 0;
-      right: 0;
-      bottom: 0;
+      inset: 0;
       display: flex;
       flex-direction: column;
       align-items: center;
@@ -809,8 +741,10 @@ onBeforeUnmount(() => {
     color: white;
     border-radius: 16px;
 
-    .q-separator {
-      background: rgba(255, 255, 255, 0.2);
+    .server-info {
+      background: rgba(255, 255, 255, 0.05);
+      border-radius: 8px;
+      padding: 8px;
     }
 
     .stats-grid {
@@ -821,15 +755,10 @@ onBeforeUnmount(() => {
 
       .stat-item {
         text-align: center;
-
         .stat-value {
           font-size: 48px;
           font-weight: bold;
           color: #667eea;
-        }
-
-        .stat-label {
-          color: rgba(255, 255, 255, 0.7);
         }
       }
     }
@@ -862,59 +791,37 @@ onBeforeUnmount(() => {
       }
     }
 
-    .progress-section {
-      .step-indicator {
-        margin: 20px 0;
+    .step-indicator {
+      .step-item {
+        display: flex;
+        align-items: center;
+        padding: 12px;
+        margin: 4px 0;
+        border-radius: 8px;
+        background: rgba(255, 255, 255, 0.1);
+        transition: all 0.3s;
 
-        .step-item {
+        &.completed { opacity: 0.7; }
+        &.active {
+          background: rgba(102, 126, 234, 0.3);
+          transform: translateX(5px);
+          .step-number { background: #667eea; }
+        }
+
+        .step-number {
+          width: 30px;
+          height: 30px;
           display: flex;
           align-items: center;
-          padding: 12px;
-          margin: 4px 0;
-          border-radius: 8px;
-          background: rgba(255, 255, 255, 0.1);
-          transition: all 0.3s;
-
-          &.completed {
-            opacity: 0.7;
-
-            .step-number {
-              background: #4caf50;
-            }
-          }
-
-          &.active {
-            background: rgba(102, 126, 234, 0.3);
-            transform: translateX(5px);
-
-            .step-number {
-              background: #667eea;
-              transform: scale(1.1);
-            }
-          }
-
-          .step-number {
-            width: 30px;
-            height: 30px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            border-radius: 50%;
-            background: rgba(255, 255, 255, 0.2);
-            margin-right: 12px;
-            font-weight: bold;
-            transition: all 0.3s;
-          }
-
-          .step-name {
-            flex: 1;
-          }
-
-          .step-timer {
-            color: #ffd700;
-            font-weight: bold;
-          }
+          justify-content: center;
+          border-radius: 50%;
+          background: rgba(255, 255, 255, 0.2);
+          margin-right: 12px;
+          font-weight: bold;
         }
+
+        .step-name { flex: 1; }
+        .step-timer { color: #ffd700; font-weight: bold; }
       }
     }
 
@@ -924,27 +831,14 @@ onBeforeUnmount(() => {
       display: flex;
       align-items: center;
 
-      &.success {
-        background: rgba(76, 175, 80, 0.2);
-        border: 1px solid #4caf50;
-      }
-
-      &.error {
-        background: rgba(244, 67, 54, 0.2);
-        border: 1px solid #f44336;
-      }
-
-      &.info {
-        background: rgba(33, 150, 243, 0.2);
-        border: 1px solid #2196f3;
-      }
+      &.success { background: rgba(76, 175, 80, 0.2); border: 1px solid #4caf50; }
+      &.error { background: rgba(244, 67, 54, 0.2); border: 1px solid #f44336; }
+      &.info { background: rgba(33, 150, 243, 0.2); border: 1px solid #2196f3; }
     }
 
-    .action-buttons {
-      .q-btn {
-        height: 56px;
-        font-size: 16px;
-      }
+    .action-buttons .q-btn {
+      height: 56px;
+      font-size: 16px;
     }
   }
 }
