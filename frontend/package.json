@@ -14,15 +14,9 @@
   },
   "devDependencies": {
     "@quasar/app-vite": "^1.6.0",
-    "@quasar/cli": "^2.4.0",
     "@quasar/extras": "^1.16.0",
-    "sass": "^1.70.0",
-    "autoprefixer": "^10.4.0"
-  },
-  "overrides": {
-    "rollup": "4.9.5"
-  },
-  "resolutions": {
-    "rollup": "4.9.5"
+    "autoprefixer": "^10.4.0",
+    "postcss": "^8.4.0",
+    "sass": "^1.70.0"
   }
 }
