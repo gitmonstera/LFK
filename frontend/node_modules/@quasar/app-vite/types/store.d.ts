@@ -1,17 +1,14 @@
 import { HasStore } from "quasar";
 import { Pinia } from "pinia";
-import { Store } from "vuex";
 import { HasSsrParam } from "./ssr";
 
-// If Pinia is installed, its type will be resolved, thus it will be used.
-// Otherwise, if Vuex is installed, it will be used. If nothing is installed, 'any' will be used.
-type StoreInstance<S = any> = unknown extends Pinia ? Store<S> : Pinia;
+type StoreInstance = Pinia;
 
-export type HasStoreParam<S = any> = HasStore<{
+export type HasStoreParam = HasStore<{
   /**
    * The store instance.
    */
-  store: StoreInstance<S>;
+  store: StoreInstance;
 }>;
 
 export type StoreParams = {} & HasSsrParam;

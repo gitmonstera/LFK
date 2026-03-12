@@ -1,14 +1,15 @@
-import { RenderError } from '@quasar/app-vite';
-import { ssrMiddleware } from 'quasar/wrappers';
+import { type Request, type Response } from 'express';
+import { type RenderError } from '#q-app';
+import { defineSsrMiddleware } from '#q-app/wrappers';
 
 // This middleware should execute as last one
 // since it captures everything and tries to
 // render the page with Vue
 
-export default ssrMiddleware(({ app, resolve, render, serve }) => {
+export default defineSsrMiddleware(({ app, resolve, render, serve }) => {
   // we capture any other Express route and hand it
   // over to Vue and Vue Router to render our page
-  app.get(resolve.urlPath('*'), (req, res) => {
+  app.get(resolve.urlPath('*'), (req: Request, res: Response) => {
     res.setHeader('Content-Type', 'text/html');
 
     render(/* the ssrContext: */ { req, res })
