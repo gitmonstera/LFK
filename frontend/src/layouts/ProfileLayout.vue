@@ -10,10 +10,6 @@
           </q-avatar>
           <span>Личный кабинет</span>
         </q-toolbar-title>
-
-        <q-btn flat round dense icon="notifications">
-          <q-badge color="red" floating>3</q-badge>
-        </q-btn>
       </q-toolbar>
     </q-header>
 
