@@ -10,14 +10,6 @@
     <!-- Навбар -->
     <q-header :class="['glass-navbar', { 'scrolled': isScrolled }]">
       <q-toolbar class="toolbar-content">
-        <q-btn
-          flat
-          round
-          dense
-          icon="menu"
-          class="menu-btn text-white"
-          @click="leftDrawerOpen = !leftDrawerOpen"
-        />
 
         <q-toolbar-title class="row items-center">
           <q-avatar size="40px" class="logo-avatar">
@@ -37,14 +29,6 @@
             icon="fab fa-github"
             target="_blank"
             class="nav-btn"
-          />
-          <q-btn
-            label="Начать тренировку"
-            icon="fitness_center"
-            color="primary"
-            class="cta-btn q-ml-md"
-            unelevated
-            to="/download"
           />
           <q-btn to="/login" label="Войти" flat class="nav-btn" v-if="!isAuthenticated" />
           <q-btn to="/profile" label="Профиль" flat class="nav-btn" v-else />
@@ -68,10 +52,6 @@
                   <q-item-section>GitHub</q-item-section>
                 </q-item>
                 <q-separator />
-                <q-item clickable v-close-popup to="/download">
-                  <q-item-section avatar><q-icon name="fitness_center" color="primary" /></q-item-section>
-                  <q-item-section class="text-primary">Начать тренировку</q-item-section>
-                </q-item>
                 <q-separator />
                 <q-item clickable v-close-popup to="/login" v-if="!isAuthenticated">
                   <q-item-section avatar><q-icon name="login" /></q-item-section>
@@ -89,52 +69,7 @@
       </q-toolbar>
     </q-header>
 
-    <q-drawer
-      v-model="leftDrawerOpen"
-      show-if-above
-      bordered
-      :width="300"
-      :breakpoint="500"
-      class="glass-drawer"
-    >
-      <q-scroll-area class="fit">
-        <q-list padding class="drawer-list">
-          <div class="drawer-header text-center q-pa-md">
-            <q-avatar size="80px" class="q-mb-md floating">
-              <img src="/logo/logo.svg">
-            </q-avatar>
-            <div class="text-h6">LFK</div>
-            <div class="text-caption text-grey-7">v1.0.0</div>
-          </div>
 
-          <q-item to="/" exact clickable v-ripple class="drawer-item">
-            <q-item-section avatar><q-icon name="home" /></q-item-section>
-            <q-item-section>
-              <q-item-label>Главная</q-item-label>
-              <q-item-label caption>Красивый лендинг</q-item-label>
-            </q-item-section>
-          </q-item>
-
-          <q-item to="/download" clickable v-ripple class="drawer-item">
-            <q-item-section avatar><q-icon name="download" /></q-item-section>
-            <q-item-section>
-              <q-item-label>Скачать</q-item-label>
-              <q-item-label caption>Получить приложение</q-item-label>
-            </q-item-section>
-          </q-item>
-
-          <q-separator class="q-my-md" />
-
-          <q-item clickable v-ripple tag="a" href="https://github.com/gitmonstera/lfk" target="_blank" class="drawer-item">
-            <q-item-section avatar><q-icon name="fab fa-github" /></q-item-section>
-            <q-item-section>
-              <q-item-label>GitHub</q-item-label>
-              <q-item-label caption>Открытый исходный код</q-item-label>
-            </q-item-section>
-          </q-item>
-        </q-list>
-      </q-scroll-area>
-    </q-drawer>
 
     <q-page-container>
       <router-view />
