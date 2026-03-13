@@ -5,23 +5,23 @@
 </div>
 
 <div align="center">
-
+  
   ![Version](https://img.shields.io/badge/version-2.0.0-blue?style=flat-square)
   ![License](https://img.shields.io/badge/license-MIT-green?style=flat-square)
   [![Go Report Card](https://goreportcard.com/badge/github.com/gitmonstera/lfk?style=flat-square)](https://goreportcard.com/report/github.com/gitmonstera/lfk)
   ![Redis](https://img.shields.io/badge/Redis-DC382D?style=flat-square&logo=redis&logoColor=white)
   ![Kubernetes](https://img.shields.io/badge/Kubernetes-326CE5?style=flat-square&logo=kubernetes&logoColor=white)
   ![Docker](https://img.shields.io/badge/Docker-2496ED?style=flat-square&logo=docker&logoColor=white)
-
+  
   *Умный помощник для выполнения упражнений лечебной физкультуры*
-
+  
   [О проекте](#-о-проекте) •
   [Технологии](#-технологии) •
   [Быстрый старт](#-быстрый-старт) •
   [Архитектура](#-архитектура) •
   [API](#-api-endpoints) •
   [Разработчик](#-разработчик)
-
+  
 </div>
 
 ---
@@ -45,7 +45,7 @@
 ## 📱 Интерфейс приложения
 
 <div align="center">
-
+  
 ### 🔐 Вход и регистрация
 
 | Экран входа | Регистрация |
@@ -76,7 +76,7 @@
 ## 🛠 Технологии
 
 <div align="center">
-
+  
 ### Backend
 ![Go](https://img.shields.io/badge/Go-00ADD8?style=for-the-badge&logo=go&logoColor=white)
 ![Python](https://img.shields.io/badge/Python-3776AB?style=for-the-badge&logo=python&logoColor=white)
