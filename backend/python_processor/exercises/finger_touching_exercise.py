@@ -13,14 +13,21 @@ logger = logging.getLogger('LKF.Exercise.FingerTouching')
 class FingerTouchingExercise(BaseExercise):
     """Упражнение: Поочередное касание пальцев с большим"""
 
-    # Константы для состояний
-    STATE_WAITING = "waiting"
-    STATE_TOUCHING = "touching"
+    # Константы для состояний - как в fist-palm
+    STATE_WAITING_FIST = "waiting_fist"
+    STATE_HOLDING_FIST = "holding_fist"
+    STATE_WAITING_PALM = "waiting_palm"
+    STATE_HOLDING_PALM = "holding_palm"
     STATE_COMPLETED = "completed"
 
-    # Названия пальцев
-    FINGER_NAMES = ["большой", "указательный", "средний", "безымянный", "мизинец"]
-    TARGET_FINGER_NAMES = ["указательным", "средним", "безымянным", "мизинцем"]
+    # Названия состояний для отображения
+    STATE_NAMES = {
+        STATE_WAITING_FIST: "Ожидание касания указательного",
+        STATE_HOLDING_FIST: "Удержание указательного",
+        STATE_WAITING_PALM: "Ожидание следующего пальца",
+        STATE_HOLDING_PALM: "Удержание пальца",
+        STATE_COMPLETED: "Упражнение завершено"
+    }
 
     def __init__(self):
         super().__init__()
@@ -28,55 +35,85 @@ class FingerTouchingExercise(BaseExercise):
         self.description = "Поочередное касание пальцев - развивает мелкую моторику"
         self.exercise_id = "finger-touching"
 
-        # Состояние упражнения
-        self.state = self.STATE_WAITING
+        # Состояние упражнения - как в fist-palm
+        self.state = self.STATE_WAITING_FIST
         self.state_start_time = time.time()
+        self.hold_duration = 1.0  # секунд удержания
 
         # Счетчики
         self.current_cycle = 0
-        self.total_cycles = 5  # 5 полных циклов (по 4 касания в каждом)
-        self.current_finger = 0  # 0=указательный, 1=средний, 2=безымянный, 3=мизинец
-        self.touches_in_cycle = 0  # количество касаний в текущем цикле (0-4)
+        self.total_cycles = 5
 
-        # Пороговое расстояние для касания (в относительных координатах)
-        self.touch_threshold = 0.05  # 5% от размера кадра
-
-        # Тайминги
-        self.hold_duration = 1.0  # секунд удержания касания
-        self.countdown = None
+        # Таймер для обратного отсчета
+        self.countdown = self.hold_duration
         self.last_countdown_update = time.time()
 
-        # Флаги
-        self.current_touch_start_time = None
+        # Флаги состояния
+        self.cycle_completed = False
         self.completed_flag = False
         self.auto_reset_on_next_start = False
 
-        # Для отслеживания последнего успешного касания
+        # Для отслеживания текущего пальца
+        self.current_finger = 0  # 0=указательный, 1=средний, 2=безымянный, 3=мизинец
+
+        # Пороговое расстояние для касания (в относительных координатах)
+        self.touch_threshold = 0.05
+
+        # Для отслеживания касания
+        self.current_touch_start_time = None
         self.last_touch_time = 0
-        self.touch_cooldown = 0.3  # задержка между касаниями
+        self.touch_cooldown = 0.3
 
         # Структурированные данные для клиента
         self.structured_data = self._get_structured_data()
 
         logger.info(f"Упражнение инициализировано: {self.name}")
-        logger.debug(f"Параметры: циклов={self.total_cycles}, удержание={self.hold_duration}с, порог={self.touch_threshold}")
+        logger.debug(f"Параметры: циклов={self.total_cycles}, удержание={self.hold_duration}с")
 
     def reset(self):
         """Сбрасывает упражнение в начальное состояние"""
-        self.state = self.STATE_WAITING
+        self.state = self.STATE_WAITING_FIST
         self.state_start_time = time.time()
         self.current_cycle = 0
         self.current_finger = 0
-        self.touches_in_cycle = 0
-        self.countdown = None
-        self.current_touch_start_time = None
+        self.countdown = self.hold_duration
+        self.last_countdown_update = time.time()
+        self.cycle_completed = False
         self.completed_flag = False
         self.auto_reset_on_next_start = False
+        self.current_touch_start_time = None
         self.last_touch_time = 0
         self.structured_data = self._get_structured_data()
 
         logger.info("Упражнение сброшено в начальное состояние")
         return True
+
+    def get_finger_states(self, hand_landmarks, frame_shape):
+        """
+        Получает позиции всех пальцев - переопределяем метод из BaseExercise
+        чтобы возвращать только координаты (x, y), а не (x, y, tip)
+        """
+        h, w, _ = frame_shape
+        finger_tips = [4, 8, 12, 16, 20]
+
+        tip_positions = []
+        finger_states = [False] * 5
+
+        for i in range(5):
+            tip = hand_landmarks.landmark[finger_tips[i]]
+            x, y = int(tip.x * w), int(tip.y * h)
+            tip_positions.append((x, y))  # Только координаты, без tip
+
+            # Определяем поднят ли палец (как в базовом классе)
+            if i == 0:  # Большой палец
+                index_mcp = hand_landmarks.landmark[5]
+                dist = abs(tip.x - index_mcp.x) + abs(tip.y - index_mcp.y)
+                finger_states[i] = dist > 0.15
+            else:
+                pip = hand_landmarks.landmark[finger_tips[i] - 1]
+                finger_states[i] = tip.y < pip.y - 0.02
+
+        return finger_states, tip_positions
 
     def reset_for_new_attempt(self):
         """Сбрасывает упражнение для нового подхода"""
@@ -97,73 +134,58 @@ class FingerTouchingExercise(BaseExercise):
             return True
         return False
 
-    def _get_finger_name(self, finger_index):
-        """Возвращает название пальца по индексу"""
-        if 0 <= finger_index < len(self.TARGET_FINGER_NAMES):
-            return self.TARGET_FINGER_NAMES[finger_index]
-        return "неизвестным"
-
     def _get_state_name(self):
         """Возвращает название текущего состояния"""
-        state_names = {
-            self.STATE_WAITING: "Ожидание касания",
-            self.STATE_TOUCHING: f"Касание с {self._get_finger_name(self.current_finger)}",
-            self.STATE_COMPLETED: "Упражнение завершено"
-        }
-        return state_names.get(self.state, "Неизвестно")
+        return self.STATE_NAMES.get(self.state, "Неизвестно")
 
     def _get_progress_percent(self):
         """Возвращает общий прогресс в процентах"""
-        total_done = self.current_cycle * 4 + self.touches_in_cycle
+        total_touches = self.current_cycle * 4 + self.current_finger
         total_needed = self.total_cycles * 4
-        return int((total_done / total_needed) * 100) if total_needed > 0 else 0
+        return int((total_touches / total_needed) * 100) if total_needed > 0 else 0
 
     def _get_state_message(self):
         """Возвращает сообщение для текущего состояния"""
-        if self.state == self.STATE_COMPLETED:
+        next_cycle = min(self.current_cycle + 1, self.total_cycles)
+
+        finger_names = ["указательным", "средним", "безымянным", "мизинцем"]
+
+        if self.state == self.STATE_WAITING_FIST:
+            return f"Коснитесь большим пальцем указательного (цикл {next_cycle}/{self.total_cycles})"
+        elif self.state == self.STATE_HOLDING_FIST:
+            return f"Держите касание с указательным... {self.countdown}с (цикл {next_cycle}/{self.total_cycles})"
+        elif self.state == self.STATE_WAITING_PALM:
+            finger_name = finger_names[self.current_finger]
+            return f"Коснитесь большим пальцем с {finger_name} (цикл {next_cycle}/{self.total_cycles})"
+        elif self.state == self.STATE_HOLDING_PALM:
+            finger_name = finger_names[self.current_finger]
+            return f"Держите касание с {finger_name}... {self.countdown}с (цикл {next_cycle}/{self.total_cycles})"
+        elif self.state == self.STATE_COMPLETED:
             return f"Упражнение завершено! Выполнено {self.total_cycles} циклов"
-
-        progress = self._get_progress_percent()
-        next_finger = self.current_finger
-        finger_name = self._get_finger_name(next_finger)
-        cycle_display = self.current_cycle + 1
-
-        if self.state == self.STATE_WAITING:
-            if self.touches_in_cycle == 0 and self.current_cycle == 0:
-                return f"Коснитесь большим пальцем указательного (цикл {cycle_display}/{self.total_cycles}) [{progress}%]"
-            else:
-                return f"Коснитесь большим пальцем с {finger_name} (цикл {cycle_display}/{self.total_cycles}) [{progress}%]"
-
-        elif self.state == self.STATE_TOUCHING:
-            remaining = int(self.hold_duration - (time.time() - self.current_touch_start_time)) + 1
-            return f"Держите касание с {finger_name}... {remaining}с ({progress}%)"
-
         return ""
 
     def _get_structured_data(self):
-        """Формирует структурированные данные для клиента"""
+        """Формирует структурированные данные для клиента - идентично fist-palm"""
         data = {
             "state": self.state,
             "state_name": self._get_state_name(),
             "current_cycle": self.current_cycle,
             "total_cycles": self.total_cycles,
-            "current_finger": self.current_finger,
-            "touches_in_cycle": self.touches_in_cycle,
-            "countdown": self.countdown,
+            "countdown": None,
             "progress_percent": self._get_progress_percent(),
             "message": self._get_state_message(),
+            "cycle_completed": self.cycle_completed,
             "completed": self.completed_flag,
-            "auto_reset": self.auto_reset_on_next_start,
-            "target_finger": self._get_finger_name(self.current_finger)
+            "auto_reset": self.auto_reset_on_next_start
         }
 
         # Добавляем countdown если в состоянии удержания
-        if self.state == self.STATE_TOUCHING and self.current_touch_start_time:
-            elapsed = time.time() - self.current_touch_start_time
-            remaining = max(0, self.hold_duration - elapsed)
-            data["countdown"] = int(remaining) + 1
-            data["progress_percent"] = min(100, (elapsed / self.hold_duration) * 100)
-            logger.debug(f"Удержание: осталось {data['countdown']}с, прогресс {data['progress_percent']:.1f}%")
+        if self.state in [self.STATE_HOLDING_FIST, self.STATE_HOLDING_PALM]:
+            data["countdown"] = self.countdown
+            if self.current_touch_start_time:
+                elapsed = time.time() - self.current_touch_start_time
+                data["progress_percent"] = min(100, (elapsed / self.hold_duration) * 100)
+            logger.debug(f"Удержание: осталось {self.countdown}с, прогресс {data['progress_percent']:.1f}%")
 
         return data
 
@@ -173,23 +195,46 @@ class FingerTouchingExercise(BaseExercise):
         dy = thumb_tip.y - finger_tip.y
         return math.sqrt(dx*dx + dy*dy)
 
-    def get_finger_states(self, hand_landmarks, frame_shape):
-        """Получает позиции всех пальцев"""
-        h, w, _ = frame_shape
-        finger_tips = [4, 8, 12, 16, 20]
+    def get_finger_colors(self, finger_states):
+        """Возвращает цвета для каждого пальца в формате BGR"""
+        colors = []
 
-        tip_positions = []
-        finger_states = [False] * 5
+        for i, is_raised in enumerate(finger_states):
+            if i == 0:  # Большой палец - всегда желтый
+                colors.append((0, 255, 255))
+                continue
 
-        for i in range(5):
-            tip = hand_landmarks.landmark[finger_tips[i]]
-            x, y = int(tip.x * w), int(tip.y * h)
-            tip_positions.append((x, y, tip))
+            target_finger = self.current_finger + 1
 
-        return finger_states, tip_positions
+            if self.state in [self.STATE_WAITING_FIST, self.STATE_HOLDING_FIST]:
+                # В фазе ожидания/удержания указательного
+                if i == 1:  # указательный
+                    if self.state == self.STATE_HOLDING_FIST:
+                        colors.append((0, 255, 0))  # Зеленый - в процессе
+                    else:
+                        colors.append((255, 255, 0))  # Голубой - ожидание
+                else:
+                    colors.append((128, 128, 128))  # Серый
+
+            elif self.state in [self.STATE_WAITING_PALM, self.STATE_HOLDING_PALM]:
+                # В фазе ожидания/удержания других пальцев
+                if i < target_finger:
+                    colors.append((0, 255, 0))  # Зеленый - уже выполнено
+                elif i == target_finger:
+                    if self.state == self.STATE_HOLDING_PALM:
+                        colors.append((0, 255, 0))  # Зеленый - в процессе
+                    else:
+                        colors.append((255, 255, 0))  # Голубой - ожидание
+                else:
+                    colors.append((128, 128, 128))  # Серый
+
+            else:  # completed
+                colors.append((128, 128, 128))
+
+        return colors
 
     def check_fingers(self, finger_states, hand_landmarks, frame_shape):
-        """Проверяет касания пальцев"""
+        """Проверяет касания пальцев - машина состояний как в fist-palm"""
         # Проверяем, нужно ли автоматически сбросить упражнение
         self.check_and_reset_if_needed()
 
@@ -211,34 +256,73 @@ class FingerTouchingExercise(BaseExercise):
         target_finger_idx = self.current_finger + 1
         distance = self._calculate_distance(thumb_tip, landmarks[target_finger_idx])
 
-        logger.debug(f"Расстояние до {self.FINGER_NAMES[target_finger_idx]}: {distance:.4f} (порог: {self.touch_threshold})")
+        # Сброс флага завершения цикла
+        self.cycle_completed = False
 
         # Машина состояний
-        if self.state == self.STATE_WAITING:
+        if self.state == self.STATE_WAITING_FIST:
             if distance < self.touch_threshold:
                 if current_time - self.last_touch_time > self.touch_cooldown:
-                    self.state = self.STATE_TOUCHING
+                    self.state = self.STATE_HOLDING_FIST
+                    self.state_start_time = current_time
                     self.current_touch_start_time = current_time
                     self.last_touch_time = current_time
-                    logger.info(f"Касание с {self.FINGER_NAMES[target_finger_idx]} засчитано, начинаем удержание")
-            else:
-                self.current_touch_start_time = None
+                    self.countdown = self.hold_duration
+                    logger.info("Касание с указательным засчитано, начинаем удержание")
 
-        elif self.state == self.STATE_TOUCHING:
+        elif self.state == self.STATE_HOLDING_FIST:
             if distance >= self.touch_threshold:
-                self.state = self.STATE_WAITING
+                self.state = self.STATE_WAITING_FIST
                 self.current_touch_start_time = None
-                logger.warning(f"Касание прервано, возврат к ожиданию")
+                logger.warning("Касание прервано, возврат к ожиданию")
             else:
-                elapsed = current_time - self.current_touch_start_time
+                elapsed = current_time - self.state_start_time
+                remaining = self.hold_duration - elapsed
+                new_countdown = int(remaining) + 1
+
+                if new_countdown != self.countdown:
+                    self.countdown = new_countdown
+                    logger.debug(f"Удержание указательного: осталось {self.countdown}с")
 
                 if elapsed >= self.hold_duration:
-                    self.touches_in_cycle += 1
-                    logger.info(f"Касание с {self.FINGER_NAMES[target_finger_idx]} успешно завершено")
+                    self.current_finger += 1
+                    self.state = self.STATE_WAITING_PALM
+                    self.state_start_time = current_time
+                    self.countdown = self.hold_duration
+                    self.current_touch_start_time = None
+                    logger.info(f"Указательный завершен, следующий палец: {self.current_finger}")
 
-                    if self.touches_in_cycle >= 4:
+        elif self.state == self.STATE_WAITING_PALM:
+            if distance < self.touch_threshold:
+                if current_time - self.last_touch_time > self.touch_cooldown:
+                    self.state = self.STATE_HOLDING_PALM
+                    self.state_start_time = current_time
+                    self.current_touch_start_time = current_time
+                    self.last_touch_time = current_time
+                    self.countdown = self.hold_duration
+                    logger.info(f"Касание с пальцем {self.current_finger} засчитано, начинаем удержание")
+
+        elif self.state == self.STATE_HOLDING_PALM:
+            if distance >= self.touch_threshold:
+                self.state = self.STATE_WAITING_PALM
+                self.current_touch_start_time = None
+                logger.warning(f"Касание с пальцем {self.current_finger} прервано")
+            else:
+                elapsed = current_time - self.state_start_time
+                remaining = self.hold_duration - elapsed
+                new_countdown = int(remaining) + 1
+
+                if new_countdown != self.countdown:
+                    self.countdown = new_countdown
+                    logger.debug(f"Удержание пальца {self.current_finger}: осталось {self.countdown}с")
+
+                if elapsed >= self.hold_duration:
+                    self.current_finger += 1
+                    self.cycle_completed = True
+                    logger.info(f"Палец {self.current_finger-1} завершен")
+
+                    if self.current_finger >= 4:
                         self.current_cycle += 1
-                        self.touches_in_cycle = 0
                         self.current_finger = 0
                         logger.info(f"Цикл {self.current_cycle}/{self.total_cycles} завершен")
 
@@ -248,38 +332,23 @@ class FingerTouchingExercise(BaseExercise):
                             self.auto_reset_on_next_start = True
                             logger.info("Упражнение полностью завершено!")
                         else:
-                            self.state = self.STATE_WAITING
+                            self.state = self.STATE_WAITING_FIST
+                            self.state_start_time = current_time
+                            self.countdown = self.hold_duration
                             self.current_touch_start_time = None
                             logger.info(f"Начинаем цикл {self.current_cycle + 1}/{self.total_cycles}")
                     else:
-                        self.current_finger += 1
-                        self.state = self.STATE_WAITING
+                        self.state = self.STATE_WAITING_PALM
+                        self.state_start_time = current_time
+                        self.countdown = self.hold_duration
                         self.current_touch_start_time = None
-                        logger.info(f"Следующий палец: {self.FINGER_NAMES[self.current_finger + 1]}")
+                        logger.info(f"Переход к следующему пальцу: {self.current_finger}")
 
         # Обновляем структурированные данные
         self.structured_data = self._get_structured_data()
+        message = self.structured_data["message"]
 
-        return True, self.structured_data["message"]
-
-    def get_finger_colors(self, finger_states):
-        """Возвращает цвета для каждого пальца в формате BGR"""
-        colors = []
-
-        for i in range(5):
-            if i == 0:  # Большой палец
-                colors.append((0, 255, 255))  # Желтый
-
-            elif i == self.current_finger + 1:  # Целевой палец
-                if self.state == self.STATE_TOUCHING:
-                    colors.append((0, 255, 0))    # Зеленый - в процессе
-                else:
-                    colors.append((255, 255, 0))  # Голубой - ожидание
-
-            else:
-                colors.append((128, 128, 128))    # Серый - неактивный
-
-        return colors
+        return True, message
 
     def get_structured_data(self):
         """Возвращает структурированные данные для клиента"""

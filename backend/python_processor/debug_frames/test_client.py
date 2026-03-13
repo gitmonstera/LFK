@@ -22,18 +22,21 @@ EXERCISE_URLS = {
     '1': f"{WS_BASE_URL}/ws/exercise/fist",
     '2': f"{WS_BASE_URL}/ws/exercise/fist-index",
     '3': f"{WS_BASE_URL}/ws/exercise/fist-palm",
+    '4': f"{WS_BASE_URL}/ws/exercise/finger-touching",  # Добавлено новое упражнение
 }
 
 EXERCISE_NAMES = {
     '1': "Кулак (все пальцы сжаты)",
     '2': "Кулак с указательным пальцем",
     '3': "Кулак-ладонь (кровообращение)",
+    '4': "Считалочка (поочередное касание пальцев)",  # Добавлено новое упражнение
 }
 
 EXERCISE_TYPES = {
     '1': 'fist',
     '2': 'fist-index',
     '3': 'fist-palm',
+    '4': 'finger-touching',  # Добавлено новое упражнение
 }
 
 # Таймауты (в секундах)
@@ -708,6 +711,205 @@ def display_fist_palm_progress(data):
 
     print("-" * 60)
 
+def display_finger_touching_progress(data):
+    """Отображает прогресс для упражнения Считалочка"""
+    clear_screen()
+
+    # Проверяем, что data - это словарь
+    if not isinstance(data, dict):
+        print(f"{Colors.RED}❌ Ошибка: данные не являются словарем{Colors.END}")
+        print(data)
+        return
+
+    structured = data.get('structured', {})
+    message = data.get('message', '')
+
+    # Извлекаем данные из structured
+    if isinstance(structured, dict):
+        current_cycle = structured.get('current_cycle', 0)
+        total_cycles = structured.get('total_cycles', 5)
+        progress_percent = structured.get('progress_percent', 0)
+        state = structured.get('state', 'waiting_fist')
+        completed = structured.get('completed', False)
+        countdown = structured.get('countdown')
+
+        # Вычисляем current_finger на основе состояния
+        if state in ['waiting_fist', 'holding_fist']:
+            current_finger = 0  # указательный
+        elif state in ['waiting_palm', 'holding_palm']:
+            # Определяем какой палец сейчас по прогрессу
+            # Простейший вариант - считаем что это следующий после выполненных
+            # Вычисляем сколько пальцев уже выполнено
+            if current_cycle > 0:
+                # Если цикл > 0, значит уже выполнен полный цикл
+                # Для определения текущего пальца используем остаток
+                current_finger = 1  # начинаем со среднего
+            else:
+                current_finger = 1  # по умолчанию средний
+        else:
+            current_finger = 0
+    else:
+        current_cycle = 0
+        total_cycles = 5
+        progress_percent = 0
+        state = 'waiting_fist'
+        completed = False
+        countdown = None
+        current_finger = 0
+
+    finger_names = ["большой", "указательный", "средний", "безымянный", "мизинец"]
+
+    print_header(f"🎯 {EXERCISE_NAMES['4']}")
+
+    hand = data.get('hand_detected', False)
+    hand_symbol = "🖐️" if hand else "❌"
+    print(f"{hand_symbol} Рука: {'в кадре' if hand else 'не обнаружена'}")
+
+    # Отображаем состояние пальцев
+    finger_states = data.get('finger_states', [])
+    if finger_states and len(finger_states) >= 5:
+        finger_names_short = ["Б", "У", "С", "Бз", "М"]
+        finger_status = []
+        for i, s in enumerate(finger_states[:5]):
+            if s:
+                finger_status.append(f"{Colors.GREEN}{finger_names_short[i]}⬆️{Colors.END}")
+            else:
+                finger_status.append(f"{Colors.RED}{finger_names_short[i]}⬇️{Colors.END}")
+        print(f"🖐️ Пальцы: {' | '.join(finger_status)}")
+    else:
+        print("🖐️ Пальцы: Б⬇️ | У⬇️ | С⬇️ | Бз⬇️ | М⬇️")
+
+    print("-" * 60)
+
+    if completed:
+        print(f"\n{Colors.GREEN}🎉 УПРАЖНЕНИЕ ВЫПОЛНЕНО!{Colors.END}")
+    else:
+        print(f"\n📋 Прогресс: цикл {current_cycle + 1}/{total_cycles} (прогресс {progress_percent}%)")
+
+        if countdown:
+            print(f"⏱️ Осталось: {countdown}с")
+
+        # Определяем текущий палец на основе состояния
+        if state == 'waiting_fist':
+            print(f"  {Colors.YELLOW}▶️ указательный{Colors.END}")
+            print(f"  ⬜ средний")
+            print(f"  ⬜ безымянный")
+            print(f"  ⬜ мизинец")
+        elif state == 'holding_fist':
+            print(f"  {Colors.YELLOW}⏳ указательный (удержание){Colors.END}")
+            print(f"  ⬜ средний")
+            print(f"  ⬜ безымянный")
+            print(f"  ⬜ мизинец")
+        elif state == 'waiting_palm':
+            # В этом состоянии текущий палец определяется по current_finger
+            if current_cycle == 0 and current_finger == 0:
+                # Первый цикл, уже выполнили указательный, теперь средний
+                print(f"  {Colors.GREEN}✅ указательный{Colors.END}")
+                print(f"  {Colors.YELLOW}▶️ средний{Colors.END}")
+                print(f"  ⬜ безымянный")
+                print(f"  ⬜ мизинец")
+            elif current_cycle == 0 and current_finger == 1:
+                # Выполнили указательный и средний, теперь безымянный
+                print(f"  {Colors.GREEN}✅ указательный{Colors.END}")
+                print(f"  {Colors.GREEN}✅ средний{Colors.END}")
+                print(f"  {Colors.YELLOW}▶️ безымянный{Colors.END}")
+                print(f"  ⬜ мизинец")
+            elif current_cycle == 0 and current_finger == 2:
+                # Выполнили три пальца, теперь мизинец
+                print(f"  {Colors.GREEN}✅ указательный{Colors.END}")
+                print(f"  {Colors.GREEN}✅ средний{Colors.END}")
+                print(f"  {Colors.GREEN}✅ безымянный{Colors.END}")
+                print(f"  {Colors.YELLOW}▶️ мизинец{Colors.END}")
+            elif current_cycle > 0:
+                # Следующие циклы
+                if current_finger == 0:
+                    print(f"  {Colors.YELLOW}▶️ указательный{Colors.END}")
+                    print(f"  ⬜ средний")
+                    print(f"  ⬜ безымянный")
+                    print(f"  ⬜ мизинец")
+                elif current_finger == 1:
+                    print(f"  {Colors.GREEN}✅ указательный{Colors.END}")
+                    print(f"  {Colors.YELLOW}▶️ средний{Colors.END}")
+                    print(f"  ⬜ безымянный")
+                    print(f"  ⬜ мизинец")
+                elif current_finger == 2:
+                    print(f"  {Colors.GREEN}✅ указательный{Colors.END}")
+                    print(f"  {Colors.GREEN}✅ средний{Colors.END}")
+                    print(f"  {Colors.YELLOW}▶️ безымянный{Colors.END}")
+                    print(f"  ⬜ мизинец")
+                elif current_finger == 3:
+                    print(f"  {Colors.GREEN}✅ указательный{Colors.END}")
+                    print(f"  {Colors.GREEN}✅ средний{Colors.END}")
+                    print(f"  {Colors.GREEN}✅ безымянный{Colors.END}")
+                    print(f"  {Colors.YELLOW}▶️ мизинец{Colors.END}")
+        elif state == 'holding_palm':
+            if current_cycle == 0 and current_finger == 1:
+                print(f"  {Colors.GREEN}✅ указательный{Colors.END}")
+                print(f"  {Colors.YELLOW}⏳ средний (удержание){Colors.END}")
+                print(f"  ⬜ безымянный")
+                print(f"  ⬜ мизинец")
+            elif current_cycle == 0 and current_finger == 2:
+                print(f"  {Colors.GREEN}✅ указательный{Colors.END}")
+                print(f"  {Colors.GREEN}✅ средний{Colors.END}")
+                print(f"  {Colors.YELLOW}⏳ безымянный (удержание){Colors.END}")
+                print(f"  ⬜ мизинец")
+            elif current_cycle == 0 and current_finger == 3:
+                print(f"  {Colors.GREEN}✅ указательный{Colors.END}")
+                print(f"  {Colors.GREEN}✅ средний{Colors.END}")
+                print(f"  {Colors.GREEN}✅ безымянный{Colors.END}")
+                print(f"  {Colors.YELLOW}⏳ мизинец (удержание){Colors.END}")
+            elif current_cycle > 0:
+                if current_finger == 0:
+                    print(f"  {Colors.YELLOW}⏳ указательный (удержание){Colors.END}")
+                    print(f"  ⬜ средний")
+                    print(f"  ⬜ безымянный")
+                    print(f"  ⬜ мизинец")
+                elif current_finger == 1:
+                    print(f"  {Colors.GREEN}✅ указательный{Colors.END}")
+                    print(f"  {Colors.YELLOW}⏳ средний (удержание){Colors.END}")
+                    print(f"  ⬜ безымянный")
+                    print(f"  ⬜ мизинец")
+                elif current_finger == 2:
+                    print(f"  {Colors.GREEN}✅ указательный{Colors.END}")
+                    print(f"  {Colors.GREEN}✅ средний{Colors.END}")
+                    print(f"  {Colors.YELLOW}⏳ безымянный (удержание){Colors.END}")
+                    print(f"  ⬜ мизинец")
+                elif current_finger == 3:
+                    print(f"  {Colors.GREEN}✅ указательный{Colors.END}")
+                    print(f"  {Colors.GREEN}✅ средний{Colors.END}")
+                    print(f"  {Colors.GREEN}✅ безымянный{Colors.END}")
+                    print(f"  {Colors.YELLOW}⏳ мизинец (удержание){Colors.END}")
+
+        # Вычисляем количество выполненных касаний
+        touches_done = current_cycle * 4
+        if state in ['waiting_palm', 'holding_palm']:
+            # В фазах palm уже выполнено текущее количество пальцев
+            if current_cycle == 0:
+                if current_finger == 1:
+                    touches_done = 2  # указательный + средний
+                elif current_finger == 2:
+                    touches_done = 3  # указательный + средний + безымянный
+                elif current_finger == 3:
+                    touches_done = 4  # все четыре
+            else:
+                touches_done = current_cycle * 4 + current_finger
+        elif state in ['waiting_fist', 'holding_fist']:
+            # В фазах fist выполнено текущее количество циклов
+            touches_done = current_cycle * 4
+
+        print(f"\n  Выполнено касаний: {touches_done}/{total_cycles * 4}")
+
+    print()
+
+    if "🎉" in message:
+        print(f"{Colors.GREEN}{message}{Colors.END}")
+    elif "❌" in message:
+        print(f"{Colors.RED}{message}{Colors.END}")
+    else:
+        print(f"{Colors.YELLOW}{message}{Colors.END}")
+
+    print("-" * 60)
+
 def display_regular_exercise(data, exercise_name):
     """Отображает обычное упражнение"""
     clear_screen()
@@ -741,14 +943,14 @@ def display_regular_exercise(data, exercise_name):
 
     print("-" * 60)
 
-def reset_exercise_on_server():
+def reset_exercise_on_server(exercise_type="fist-palm"):
     """Отправляет запрос на сброс упражнения на сервере"""
     global auth_token
     try:
         response = requests.post(
             f"{BASE_URL}/api/exercise/reset",
             headers={"Authorization": f"Bearer {auth_token}"},
-            json={"exercise_type": "fist-palm"},
+            json={"exercise_type": exercise_type},
             timeout=2
         )
         if response.status_code == 200:
@@ -860,6 +1062,7 @@ def connect_and_run(exercise_key):
 
                         current_time = time.time()
                         if current_time - last_update_time > 0.5:
+                            # Выбор отображения в зависимости от упражнения
                             if exercise_key == '3':
                                 display_fist_palm_progress(data)
 
@@ -899,6 +1102,29 @@ def connect_and_run(exercise_key):
                                     break
 
                                 last_cycle = current_cycle
+                            elif exercise_key == '4':
+                                if data:
+                                    display_finger_touching_progress(data)
+                                else:
+                                    print(f"{Colors.RED}❌ Нет данных от сервера{Colors.END}")
+                                    continue
+
+                                # Безопасно извлекаем данные
+                                structured = data.get('structured', {}) if isinstance(data, dict) else {}
+                                completed = structured.get('completed', False) if isinstance(structured, dict) else False
+
+                                if completed and not exercise_completed:
+                                    exercise_completed = True
+                                    print(f"\n{Colors.YELLOW}🎯 УПРАЖНЕНИЕ ВЫПОЛНЕНО!{Colors.END}")
+
+                                    if add_exercise_set(session_id, exercise_type, 5, 60, 95.0):
+                                        print(f"{Colors.GREEN}✅ Статистика сохранена!{Colors.END}")
+
+                                    if end_workout(session_id):
+                                        print(f"{Colors.GREEN}✅ Тренировка завершена!{Colors.END}")
+
+                                    workout_ended = True
+                                    break
                             else:
                                 display_regular_exercise(data, exercise_name)
 
@@ -911,7 +1137,7 @@ def connect_and_run(exercise_key):
 
                 cv2.putText(img, f"User: {user_info.get('username', '')}", (10, 30),
                             cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 255, 0), 2)
-                cv2.putText(img, f"Sets: {sets_completed}/{total_cycles}", (10, 55),
+                cv2.putText(img, f"Exercise: {exercise_key}", (10, 55),
                             cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 255, 0), 2)
                 cv2.putText(img, "ESC - exit", (10, 80),
                             cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 1)
@@ -1007,7 +1233,7 @@ def wait_for_exercise_reset(exercise_type, max_attempts=10):
 
             print(f"🔄 Проверка состояния: цикл={current_cycle}, состояние={state_name}, завершено={completed}")
 
-            if not completed and current_cycle == 0 and state_name == 'waiting_fist':
+            if not completed and current_cycle == 0 and (state_name == 'waiting_fist' or state_name == 'waiting_start'):
                 print(f"{Colors.GREEN}✅ Упражнение готово к началу{Colors.END}")
                 return True
 
@@ -1047,7 +1273,7 @@ def main():
         elif choice == '3' and auth_token and user_info:
             while True:
                 print_exercise_menu()
-                ex_choice = input("\nВыберите упражнение (1-3, b - назад): ").strip().lower()
+                ex_choice = input("\nВыберите упражнение (1-4, b - назад): ").strip().lower()
 
                 if ex_choice == 'b':
                     break
