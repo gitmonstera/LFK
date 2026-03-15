@@ -8,15 +8,10 @@
             <div class="col-12 col-md-6">
               <div class="hero-text fade-in">
                 <div class="badge-glow q-mb-md">
-                  <q-badge color="primary" class="q-pa-sm">
-                    <q-icon name="bolt" /> AI-Powered
-                  </q-badge>
                 </div>
 
                 <h1 class="hero-title">
-                  <span class="gradient-text">Лечебная</span><br>
-                  <span class="gradient-text">Физическая</span><br>
-                  <span class="gradient-text">Культура</span>
+                  <span class="gradient-text">ЛФК</span>
                 </h1>
 
                 <p class="hero-subtitle">
@@ -47,20 +42,100 @@
               </div>
             </div>
 
+            <!-- Phone Quasar -->
             <div class="col-12 col-md-6">
-              <div class="hero-visual">
-                <div class="phone-mockup floating">
-                  <div class="phone-screen">
-                    <div class="app-preview">
-                      <div class="exercise-animation">
-                        <div class="skeleton-hand"></div>
-                        <div class="skeleton-points"></div>
+              <div class="hero-visual flex flex-center">
+                <q-card class="phone-mockup floating" style="width: 300px; background: #1a1a1a; border-radius: 50px; box-shadow: 0 30px 60px rgba(0,0,0,0.4);">
+
+                  <!-- Верхняя панель iPhone -->
+                  <q-toolbar class="bg-dark text-white" style="border-radius: 50px 50px 0 0; min-height: 44px; padding: 0 16px; background: #000 !important;">
+                    <div class="row items-center justify-between full-width">
+                      <!-- Время слева -->
+                      <span style="font-size: 14px; font-weight: 600; color: #fff;">9:41</span>
+
+                      <!-- Dynamic Island -->
+                      <div class="row items-center" style="background: #1c1c1e; border-radius: 30px; padding: 4px 12px;">
+                        <div style="width: 30px; height: 6px; background: #333; border-radius: 3px;"></div>
+                      </div>
+
+                      <!-- Иконки справа -->
+                      <div class="row items-center" style="gap: 4px;">
+                        <q-icon name="signal_cellular_alt" size="12px" color="white" />
+                        <q-icon name="wifi" size="12px" color="white" />
+                        <q-icon name="battery_full" size="14px" color="white" />
                       </div>
                     </div>
+                  </q-toolbar>
+
+                  <!-- Экран приложения -->
+                  <q-card-section class="bg-white" style="min-height: 550px; padding: 0; background: #f5f5f5 !important;">
+
+                    <!-- УВЕДОМЛЕНИЕ сверху (как в iOS) -->
+                    <div class="q-pa-md" style="background: #1c1c1e; border-bottom: 1px solid #1c1c1e;">
+                      <div class="row items-center q-mb-xs">
+                        <q-avatar size="24px" class="bg-primary text-white q-mr-sm">
+                          <q-icon name="fitness_center" size="16px" />
+                        </q-avatar>
+                        <div>
+                          <div style="font-weight: 600; font-size: 14px;">LFK Monster</div>
+                          <div style="font-size: 12px; color: #666;">только что</div>
+                        </div>
+                        <q-space />
+                        <q-icon name="close" size="18px" color="grey-6" />
+                      </div>
+                      <div style="background: #a0a2a3; padding: 10px; border-radius: 10px; margin-top: 5px;">
+                        <div style="font-weight: 500; margin-bottom: 4px;">Новая тренировка</div>
+                        <div style="font-size: 13px; color: #444;">Серия: 7 дней подряд!</div>
+                      </div>
+                    </div>
+
+                    <!-- ОСНОВНОЙ КОНТЕНТ приложения -->
+                    <div class="q-pa-md" style="background: #1a1a1a">
+
+                      <!-- Заголовок раздела -->
+                      <div class="row justify-between items-center q-mb-md">
+                        <div>
+                          <span style="font-size: 24px; font-weight: 600;">Упражнения</span>
+                          <span style="font-size: 14px; color: #666; margin-left: 8px;">3 из 5</span>
+                        </div>
+                        <q-btn flat round icon="more_horiz" size="sm" color="grey-7" />
+                      </div>
+
+                      <!-- МЕСТО ДЛЯ ИЗОБРАЖЕНИЯ -->
+                      <div class="q-mb-lg">
+                        <!-- Анимация руки (ваша) -->
+                        <div class="exercise-animation column items-center q-gutter-md" style="background: #ffffff; border-radius: 20px; padding: 30px;">
+                          <div class="relative-position">
+                            <q-avatar size="157px" >
+                              <q-icon name="photo" size="150px" color="black"/>
+                            </q-avatar>
+                          </div>
+                        </div>
+                      </div>
+
+                      <!-- ПРОГРЕСС БАР снизу -->
+                      <div class="q-mt-xl">
+                        <div class="row justify-between q-mb-xs">
+                          <span style="font-weight: 500;">Прогресс тренировки</span>
+                          <span style="color: #666;">70%</span>
+                        </div>
+                        <q-linear-progress rounded size="20px" :value="0.7" color="green" class="q-mb-md" />
+
+                      </div>
+                    </div>
+                  </q-card-section>
+
+                  <!-- Home Bar -->
+                  <div style="background: #000; border-radius: 0 0 50px 50px; padding: 8px 0;">
+                    <div class="row justify-center">
+                      <div style="width: 140px; height: 5px; background: #fff; border-radius: 3px; opacity: 0.7;"></div>
+                    </div>
                   </div>
-                </div>
+                </q-card>
               </div>
             </div>
+
+
           </div>
         </div>
       </div>
@@ -149,7 +224,7 @@
               <q-avatar size="50px" class="q-mb-sm">
                 <img src="/logo/logo.svg" alt="LFK">
               </q-avatar>
-              <h4>LFK</h4>
+              <h4>ЛФК</h4>
               <p>Умный помощник для лечебной физкультуры с компьютерным зрением</p>
             </div>
           </div>
@@ -249,15 +324,12 @@ const steps = [
 .hero-section {
   position: relative;
   min-height: 100vh;
-  display: flex;
   align-items: center;
   color: white;
   overflow: hidden;
   background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
 
   .hero-content {
-    position: relative;
-    z-index: 2;
     padding: 120px 0 80px;
     width: 100%;
   }
@@ -343,20 +415,6 @@ const steps = [
     }
   }
 
-  .stat-item {
-    .stat-value {
-      font-size: clamp(1.5rem, 3vw, 2rem);
-      font-weight: 700;
-      line-height: 1.2;
-    }
-
-    .stat-label {
-      font-size: clamp(0.8rem, 1.5vw, 0.9rem);
-      opacity: 0.8;
-      text-transform: uppercase;
-      letter-spacing: 1px;
-    }
-  }
 
   .hero-wave {
     position: absolute;
