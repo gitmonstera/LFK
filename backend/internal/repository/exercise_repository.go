@@ -59,7 +59,8 @@ func (r *ExerciseRepository) GetExerciseList() ([]models.ExerciseInfo, error) {
             COALESCE(e.instructions, '{}') as instructions,
             COALESCE(e.duration_seconds, 0) as duration_seconds,
             e.image_url,
-            e.video_url
+            e.video_url,
+            COALESCE(e.applicable_codes, '{}') as applicable_codes   -- новое поле
         FROM exercises e
         LEFT JOIN exercise_categories c ON e.category_id = c.id
         WHERE e.is_active = true

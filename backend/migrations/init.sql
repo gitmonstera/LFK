@@ -300,3 +300,89 @@ ON CONFLICT (username) DO NOTHING;
 INSERT INTO overall_stats (user_id)
     SELECT id FROM users WHERE username IN ('testuser', 'admin')
 ON CONFLICT (user_id) DO NOTHING;
+
+ALTER TABLE exercises
+    ADD COLUMN IF NOT EXISTS applicable_codes TEXT[];
+
+-- Комментарий к столбцу
+COMMENT ON COLUMN exercises.applicable_codes IS 'Массив кодов МКБ-10 (или диапазонов), для которых показано упражнение. Например: {"S62.0–S62.9","M19.0","G81"}';
+
+-- =====================================================
+-- Обновление существующих упражнений
+-- =====================================================
+
+-- Упражнение "Кулак" (fist)
+UPDATE exercises
+SET applicable_codes = ARRAY[
+    'S62.0–S62.9',          -- Переломы запястья, пясти, пальцев кисти
+    'S63.0–S63.7',          -- Вывихи и повреждения связок лучезапястного сустава и кисти
+    'M19.0–M19.9',          -- Артроз плечевого, локтевого, голеностопного и других суставов (в т.ч. кисти)
+    'M65.0–M65.9',          -- Синовиты, теносиновиты
+    'M79.0–M79.2',          -- Ревматизм мягких тканей, миалгии, невралгии
+    'G81.0–G81.9',          -- Гемиплегия (постинсультная)
+    'G60–G64',              -- Полинейропатии
+    'Z50.0'                 -- Лечебная физкультура (основной код назначения)
+    ]
+WHERE id = 'fist';
+
+-- Упражнение "Кулак с указательным" (fist-index)
+UPDATE exercises
+SET applicable_codes = ARRAY[
+    'S62.0–S62.9',
+    'S63.0–S63.7',
+    'M19.0–M19.9',
+    'M65.0–M65.9',
+    'G81.0–G81.9',
+    'G60–G64',
+    'Z50.0'
+    ]
+WHERE id = 'fist-index';
+
+-- Упражнение "Кулак-ладонь" (fist-palm)
+UPDATE exercises
+SET applicable_codes = ARRAY[
+    'S62.0–S62.9',
+    'S63.0–S63.7',
+    'M19.0–M19.9',
+    'M65.0–M65.9',
+    'G81.0–G81.9',
+    'G60–G64',
+    'Z50.0'
+    ]
+WHERE id = 'fist-palm';
+
+-- Упражнение "Считалочка" (finger-touching)
+UPDATE exercises
+SET applicable_codes = ARRAY[
+    'S62.0–S62.9',
+    'S63.0–S63.7',
+    'M19.0–M19.9',
+    'G81.0–G81.9',
+    'G60–G64',
+    'G35',                  -- Рассеянный склероз
+    'I69.0–I69.4',          -- Последствия инсульта
+    'Z50.0'
+    ]
+WHERE id = 'finger-touching';
+
+-- =====================================================
+-- Пример добавления нового упражнения с показаниями
+-- =====================================================
+-- INSERT INTO exercises (id, name, description, category_id, difficulty_level, target_muscles, instructions, duration_seconds, calories_burn, applicable_codes)
+-- VALUES (
+--     'wrist-rotation',
+--     'Вращение кистью',
+--     'Круговые движения кистью для улучшения подвижности лучезапястного сустава',
+--     (SELECT id FROM exercise_categories WHERE name = 'Руки'),
+--     1,
+--     ARRAY['Мышцы предплечья', 'Лучезапястный сустав'],
+--     ARRAY['Вытяните руку', 'Медленно вращайте кистью по часовой стрелке 10 раз', 'Повторите против часовой стрелки'],
+--     30,
+--     2.0,
+--     ARRAY['S62.0–S62.9', 'S63.0–S63.7', 'M19.0', 'M70.0–M70.9', 'Z50.0']
+-- );
+
+-- =====================================================
+-- Индекс для ускорения поиска по показаниям
+-- =====================================================
+CREATE INDEX IF NOT EXISTS idx_exercises_applicable_codes ON exercises USING gin (applicable_codes);

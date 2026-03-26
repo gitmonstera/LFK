@@ -69,6 +69,7 @@ type ExerciseInfo struct {
 	DurationSeconds int            `db:"duration_seconds" json:"duration_seconds"`
 	ImageURL        *string        `db:"image_url" json:"image_url"`
 	VideoURL        *string        `db:"video_url" json:"video_url"`
+	ApplicableCodes pq.StringArray `db:"applicable_codes" json:"applicable_codes"`
 }
 
 // ExerciseListResponse - ответ со списком упражнений
