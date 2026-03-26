@@ -222,7 +222,9 @@ const filteredExercises = computed(() => {
   return exercises.value.filter(ex =>
     ex.name.toLowerCase().includes(query) ||
     (ex.description && ex.description.toLowerCase().includes(query)) ||
-    (ex.category && ex.category.toLowerCase().includes(query))
+    (ex.category && ex.category.toLowerCase().includes(query)) ||
+    (ex.applicable_codes && Array.isArray(ex.applicable_codes) &&
+      ex.applicable_codes.join(' ').toLowerCase().includes(query))
   )
 })
 
