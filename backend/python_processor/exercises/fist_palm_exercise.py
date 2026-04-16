@@ -1,17 +1,19 @@
 """
-Упражнение: Кулак-ладонь
+Упражнение: Кулак-ладонь (МИНИМАЛЬНАЯ ОТРИСОВКА)
 Чередование сжатия и разжатия пальцев для улучшения кровообращения
 """
 
 import time
 import logging
+
+import cv2
+
 from .base_exercise import BaseExercise
 
-# Настройка логгера для этого упражнения
-logger = logging.getLogger('LKF.Exercise.FistPalm')
+logger = logging.getLogger('LFK.Exercise.FistPalm')
 
 class FistPalmExercise(BaseExercise):
-    """Упражнение: Кулак-ладонь (для кровообращения)"""
+    """Упражнение: Кулак-ладонь - минимальная отрисовка"""
 
     # Константы для состояний
     STATE_WAITING_FIST = "waiting_fist"
@@ -20,90 +22,93 @@ class FistPalmExercise(BaseExercise):
     STATE_HOLDING_PALM = "holding_palm"
     STATE_COMPLETED = "completed"
 
-    # Названия состояний для отображения
-    STATE_NAMES = {
-        STATE_WAITING_FIST: "Ожидание кулака",
-        STATE_HOLDING_FIST: "Держите кулак",
-        STATE_WAITING_PALM: "Ожидание ладони",
-        STATE_HOLDING_PALM: "Держите ладонь",
-        STATE_COMPLETED: "Упражнение завершено"
+    # Предопределенные цвета
+    COLORS = {
+        'green': (0, 255, 0),
+        'red': (0, 0, 255),
+        'gray': (128, 128, 128),
+        'white': (255, 255, 255),
+        'black': (0, 0, 0)
     }
 
     def __init__(self):
         super().__init__()
         self.name = "Кулак-ладонь"
-        self.description = "Сжимайте и разжимайте пальцы для улучшения кровообращения"
+        self.description = "Сжимайте и разжимайте пальцы"
         self.exercise_id = "fist-palm"
 
-        # Состояние упражнения
+        # Состояние
         self.state = self.STATE_WAITING_FIST
-        self.state_start_time = time.time()
-        self.hold_duration = 3  # секунд удержания
+        self.state_start_time = 0.0
+        self.hold_duration = 2.5
 
         # Счетчики
         self.current_cycle = 0
         self.total_cycles = 5
 
-        # Таймер для обратного отсчета
-        self.countdown = 3
-        self.last_countdown_update = time.time()
+        # Таймер
+        self.countdown = self.hold_duration
 
-        # Флаги состояния
+        # Флаги
         self.cycle_completed = False
         self.completed_flag = False
         self.auto_reset_on_next_start = False
 
-        # Структурированные данные для клиента
         self.structured_data = self._get_structured_data()
-
         logger.info(f"Упражнение инициализировано: {self.name}")
-        logger.debug(f"Параметры: циклов={self.total_cycles}, удержание={self.hold_duration}с")
 
     def reset(self):
-        """Сбрасывает упражнение в начальное состояние"""
         self.state = self.STATE_WAITING_FIST
-        self.state_start_time = time.time()
+        self.state_start_time = 0.0
         self.current_cycle = 0
         self.countdown = self.hold_duration
-        self.last_countdown_update = time.time()
         self.cycle_completed = False
         self.completed_flag = False
         self.auto_reset_on_next_start = False
         self.structured_data = self._get_structured_data()
-
-        logger.info("Упражнение сброшено в начальное состояние")
         return True
 
     def reset_for_new_attempt(self):
-        """Сбрасывает упражнение для нового подхода"""
-        self.state = self.STATE_WAITING_FIST
-        self.state_start_time = time.time()
-        self.current_cycle = 0
-        self.countdown = self.hold_duration
-        self.last_countdown_update = time.time()
-        self.cycle_completed = False
-        self.completed_flag = False
-        self.auto_reset_on_next_start = False
-        self.structured_data = self._get_structured_data()
-
-        logger.info("Упражнение сброшено для нового подхода")
-        return True
+        return self.reset()
 
     def mark_for_reset(self):
-        """Помечает упражнение для сброса при следующем запуске"""
         self.auto_reset_on_next_start = True
-        logger.info("Упражнение помечено для автосброса при следующем запуске")
 
     def check_and_reset_if_needed(self):
-        """Проверяет, нужно ли сбросить упражнение"""
         if self.auto_reset_on_next_start:
-            logger.debug("Автоматический сброс при новом запуске")
-            self.reset_for_new_attempt()
+            self.reset()
+            self.auto_reset_on_next_start = False
             return True
         return False
 
+    def _get_state_name(self):
+        names = {
+            self.STATE_WAITING_FIST: "Ожидание кулака",
+            self.STATE_HOLDING_FIST: "Держите кулак",
+            self.STATE_WAITING_PALM: "Ожидание ладони",
+            self.STATE_HOLDING_PALM: "Держите ладонь",
+            self.STATE_COMPLETED: "Упражнение завершено"
+        }
+        return names.get(self.state, "Неизвестно")
+
+    def _get_state_message(self):
+        if self.state == self.STATE_COMPLETED:
+            return f"Завершено! {self.total_cycles} циклов"
+
+        next_cycle = min(self.current_cycle + 1, self.total_cycles)
+
+        if self.state == self.STATE_WAITING_FIST:
+            return f"Сожмите кулак ({next_cycle}/{self.total_cycles})"
+        elif self.state == self.STATE_HOLDING_FIST:
+            return f"Держите кулак... {self.countdown}с"
+        elif self.state == self.STATE_WAITING_PALM:
+            return f"Раскройте ладонь ({next_cycle}/{self.total_cycles})"
+        elif self.state == self.STATE_HOLDING_PALM:
+            return f"Держите ладонь... {self.countdown}с"
+
+        return ""
+
     def _get_structured_data(self):
-        """Формирует структурированные данные для клиента"""
         data = {
             "state": self.state,
             "state_name": self._get_state_name(),
@@ -117,159 +122,122 @@ class FistPalmExercise(BaseExercise):
             "auto_reset": self.auto_reset_on_next_start
         }
 
-        # Добавляем countdown если в состоянии удержания
-        if self.state in [self.STATE_HOLDING_FIST, self.STATE_HOLDING_PALM]:
+        if self.state in (self.STATE_HOLDING_FIST, self.STATE_HOLDING_PALM):
             data["countdown"] = self.countdown
-            elapsed = time.time() - self.state_start_time
-            data["progress_percent"] = min(100, (elapsed / self.hold_duration) * 100)
-            logger.debug(f"Прогресс: {data['progress_percent']:.1f}%, осталось: {self.countdown}с")
+            if self.state_start_time:
+                elapsed = time.time() - self.state_start_time
+                data["progress_percent"] = min(100, (elapsed / self.hold_duration) * 100)
 
         return data
 
-    def _get_state_name(self):
-        """Возвращает название текущего состояния"""
-        return self.STATE_NAMES.get(self.state, "Неизвестно")
-
-    def _get_state_message(self):
-        """Возвращает сообщение для текущего состояния"""
-        next_cycle = min(self.current_cycle + 1, self.total_cycles)
-
-        messages = {
-            self.STATE_WAITING_FIST: f"Сожмите кулак (цикл {next_cycle}/{self.total_cycles})",
-            self.STATE_HOLDING_FIST: f"Держите кулак... {self.countdown}с (цикл {next_cycle}/{self.total_cycles})",
-            self.STATE_WAITING_PALM: f"Раскройте ладонь (цикл {next_cycle}/{self.total_cycles})",
-            self.STATE_HOLDING_PALM: f"Держите ладонь... {self.countdown}с (цикл {next_cycle}/{self.total_cycles})",
-            self.STATE_COMPLETED: f"Упражнение завершено! Выполнено {self.total_cycles} циклов"
-        }
-
-        return messages.get(self.state, "")
-
     def check_fingers(self, finger_states, hand_landmarks, frame_shape):
-        """
-        Проверяет положение пальцев и управляет состояниями упражнения
-        """
-        # Проверяем, нужно ли автоматически сбросить упражнение
         self.check_and_reset_if_needed()
 
         raised_fingers = sum(finger_states)
         current_time = time.time()
 
-        # Определяем тип положения
-        is_fist = raised_fingers <= 0
-        is_palm = raised_fingers >= 5
+        # Кулак: 0-1 палец поднят, Ладонь: 4-5 пальцев поднято
+        is_fist = raised_fingers <= 1
+        is_palm = raised_fingers >= 4
 
-        # Сброс флага завершения цикла
         self.cycle_completed = False
 
-        # Отладочная информация
-        logger.debug(f"Состояние: {self.state}, пальцев: {raised_fingers}, цикл: {self.current_cycle}/{self.total_cycles}")
-
-        # Машина состояний
         if self.state == self.STATE_WAITING_FIST:
             if is_fist:
                 self.state = self.STATE_HOLDING_FIST
                 self.state_start_time = current_time
                 self.countdown = self.hold_duration
-                logger.info("Кулак сжат, начинаем удержание")
 
         elif self.state == self.STATE_HOLDING_FIST:
             if not is_fist:
                 self.state = self.STATE_WAITING_FIST
-                logger.warning("Кулак разжат раньше времени, возврат к ожиданию")
             else:
                 elapsed = current_time - self.state_start_time
-                remaining = self.hold_duration - elapsed
-                new_countdown = int(remaining) + 1
-
+                new_countdown = int(self.hold_duration - elapsed) + 1
                 if new_countdown != self.countdown:
                     self.countdown = new_countdown
-                    logger.debug(f"Удержание кулака: осталось {self.countdown}с")
 
                 if elapsed >= self.hold_duration:
                     self.state = self.STATE_WAITING_PALM
                     self.state_start_time = current_time
                     self.countdown = self.hold_duration
-                    logger.info("Фаза кулака завершена, ожидание ладони")
 
         elif self.state == self.STATE_WAITING_PALM:
             if is_palm:
                 self.state = self.STATE_HOLDING_PALM
                 self.state_start_time = current_time
                 self.countdown = self.hold_duration
-                logger.info("Ладонь раскрыта, начинаем удержание")
 
         elif self.state == self.STATE_HOLDING_PALM:
             if not is_palm:
                 self.state = self.STATE_WAITING_PALM
-                logger.warning("Ладонь сжата раньше времени, возврат к ожиданию")
             else:
                 elapsed = current_time - self.state_start_time
-                remaining = self.hold_duration - elapsed
-                new_countdown = int(remaining) + 1
-
+                new_countdown = int(self.hold_duration - elapsed) + 1
                 if new_countdown != self.countdown:
                     self.countdown = new_countdown
-                    logger.debug(f"Удержание ладони: осталось {self.countdown}с")
 
                 if elapsed >= self.hold_duration:
                     self.current_cycle += 1
                     self.cycle_completed = True
-                    logger.info(f"Цикл {self.current_cycle}/{self.total_cycles} завершен")
 
                     if self.current_cycle >= self.total_cycles:
                         self.state = self.STATE_COMPLETED
                         self.completed_flag = True
                         self.auto_reset_on_next_start = True
-                        logger.info("Упражнение полностью завершено!")
                     else:
                         self.state = self.STATE_WAITING_FIST
                         self.state_start_time = current_time
                         self.countdown = self.hold_duration
-                        logger.info(f"Начинаем цикл {self.current_cycle + 1}/{self.total_cycles}")
 
-        elif self.state == self.STATE_COMPLETED:
-            logger.debug("Упражнение завершено, ожидание команды")
-
-        # Обновляем структурированные данные
         self.structured_data = self._get_structured_data()
-        message = self.structured_data["message"]
-
-        return True, message
+        return True, self.structured_data["message"]
 
     def get_finger_colors(self, finger_states):
-        """
-        Возвращает цвета для каждого пальца в формате BGR
-        """
+        """Цвета для пальцев"""
         colors = []
+        is_fist_phase = self.state in (self.STATE_WAITING_FIST, self.STATE_HOLDING_FIST)
+        is_palm_phase = self.state in (self.STATE_WAITING_PALM, self.STATE_HOLDING_PALM)
 
-        for i, is_raised in enumerate(finger_states):
-            if self.state in [self.STATE_WAITING_FIST, self.STATE_HOLDING_FIST]:
-                # В фазе кулака: пальцы должны быть сжаты
-                if is_raised:
-                    colors.append((0, 0, 255))      # Красный - ошибка
-                else:
-                    colors.append((0, 255, 0))      # Зеленый - правильно
-
-            elif self.state in [self.STATE_WAITING_PALM, self.STATE_HOLDING_PALM]:
-                # В фазе ладони: пальцы должны быть подняты
-                if is_raised:
-                    colors.append((0, 255, 0))      # Зеленый - правильно
-                else:
-                    colors.append((0, 0, 255))      # Красный - ошибка
-
-            else:  # completed
-                colors.append((128, 128, 128))       # Серый - нейтральный
+        for is_raised in finger_states:
+            if is_fist_phase:
+                colors.append(self.COLORS['green'] if not is_raised else self.COLORS['red'])
+            elif is_palm_phase:
+                colors.append(self.COLORS['green'] if is_raised else self.COLORS['red'])
+            else:
+                colors.append(self.COLORS['gray'])
 
         return colors
 
+    def draw_feedback(self, frame, finger_states, tip_positions, is_correct, message):
+        """МИНИМАЛЬНАЯ отрисовка - только кружки на пальцах и маленькая панель сверху"""
+        colors = self.get_finger_colors(finger_states)
+
+        # Только кружки на кончиках пальцев (без текста)
+        for i, (x, y) in enumerate(tip_positions):
+            color = colors[i] if i < len(colors) else self.COLORS['gray']
+            cv2.circle(frame, (x, y), 18, color, -1)
+            cv2.circle(frame, (x, y), 18, self.COLORS['white'], 1)
+
+        # МАЛЕНЬКАЯ панель сверху слева (только основная информация)
+        cv2.rectangle(frame, (5, 5), (250, 55), self.COLORS['black'], -1)
+        cv2.rectangle(frame, (5, 5), (250, 55), self.COLORS['white'], 1)
+
+        # Название упражнения (короткое)
+        cv2.putText(frame, "Fist-Palm", (15, 25),
+                    cv2.FONT_HERSHEY_SIMPLEX, 0.5, self.COLORS['white'], 1)
+
+        # Прогресс (цикл)
+        cv2.putText(frame, f"Cycle: {self.current_cycle}/{self.total_cycles}", (15, 45),
+                    cv2.FONT_HERSHEY_SIMPLEX, 0.45, self.COLORS['green'], 1)
+
+        return frame
+
     def get_structured_data(self):
-        """Возвращает структурированные данные для клиента"""
         return self.structured_data
 
     def force_reset_if_needed(self):
-        """Принудительно сбрасывает упражнение если оно в состоянии completed"""
         if self.state == self.STATE_COMPLETED or self.completed_flag:
-            logger.info(f"Принудительный сброс из состояния {self.state}")
-            self.reset_for_new_attempt()
+            self.reset()
             return True
         return False
