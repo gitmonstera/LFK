@@ -104,12 +104,20 @@ socketio = SocketIO(app, cors_allowed_origins="*", ping_timeout=60, ping_interva
 
 # Инициализация MediaPipe
 mp_hands = mp.solutions.hands
+mp_pose = mp.solutions.pose
 mp_drawing = mp.solutions.drawing_utils
 mp_drawing_styles = mp.solutions.drawing_styles
 
 hands = mp_hands.Hands(
     static_image_mode=False,
     max_num_hands=1,
+    min_detection_confidence=0.5,
+    min_tracking_confidence=0.5
+)
+
+pose = mp_pose.Pose(
+    static_image_mode=False,
+    model_complexity=1,
     min_detection_confidence=0.5,
     min_tracking_confidence=0.5
 )
@@ -154,6 +162,7 @@ class ExerciseManager:
         self.stats = {
             'frames_processed': 0,
             'hands_detected': 0,
+            'pose_detected': 0,
             'avg_processing_time': 0
         }
 
@@ -168,8 +177,12 @@ class ExerciseManager:
     def load_exercises(self):
         """Загружает все упражнения из папки exercises"""
         for ex_id, ex_class in EXERCISE_CLASSES.items():
-            self.exercises[ex_id] = ex_class()
-            log.info(f"Загружено упражнение: {ex_id} - {self.exercises[ex_id].name}")
+            try:
+                self.exercises[ex_id] = ex_class()
+                log.info(f"Загружено упражнение: {ex_id} - {self.exercises[ex_id].name}")
+            except Exception as e:
+                log.error(f"Ошибка загрузки упражнения {ex_id}: {e}")
+
 
     def set_exercise(self, exercise_id):
         """Устанавливает текущее упражнение"""
@@ -207,6 +220,13 @@ class ExerciseManager:
         """Возвращает список доступных упражнений"""
         return [{"id": ex_id, "name": ex.name} for ex_id, ex in self.exercises.items()]
 
+    def _is_pose_exercise(self):
+        """Проверяет, нужно ли использовать pose detection"""
+        if hasattr(self.current_exercise, 'body_part'):
+            from exercises.base_exercise import BodyPart
+            return self.current_exercise.body_part in [BodyPart.POSE, BodyPart.HEAD, BodyPart.SHOULDER]
+        return False
+
     @log_execution_time
     def process_frame(self, frame_data):
         """Обработка кадра"""
@@ -240,19 +260,29 @@ class ExerciseManager:
             frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
             frame_rgb.flags.writeable = False
 
-            # Обрабатываем кадр
-            results = hands.process(frame_rgb)
-            frame_rgb.flags.writeable = True
-
             # Создаем копию для визуализации
             display_frame = frame.copy()
             h, w, _ = frame.shape
 
-            if results.multi_hand_landmarks:
-                self.stats['hands_detected'] += 1
-                result = self.process_hand(results, display_frame, h, w)
+            # Выбираем детектор в зависимости от упражнения
+            if self._is_pose_exercise():
+                results = pose.process(frame_rgb)
+                frame_rgb.flags.writeable = True
+
+                if results.pose_landmarks:
+                    self.stats['pose_detected'] += 1
+                    result = self.process_pose(results, display_frame, h, w)
+                else:
+                    result = self.no_pose_response(display_frame)
             else:
-                result = self.no_hand_response(display_frame)
+                results = hands.process(frame_rgb)
+                frame_rgb.flags.writeable = True
+
+                if results.multi_hand_landmarks:
+                    self.stats['hands_detected'] += 1
+                    result = self.process_hand(results, display_frame, h, w)
+                else:
+                    result = self.no_hand_response(display_frame)
 
             # Вычисляем и сохраняем время обработки
             process_time = (time.time() - start_time) * 1000
@@ -288,20 +318,31 @@ class ExerciseManager:
                 mp_drawing_styles.get_default_hand_connections_style()
             )
 
-            # Получаем состояние пальцев
-            finger_states, tip_positions = self.current_exercise.get_finger_states(
-                hand_landmarks, (h, w, 3)
-            )
+            # Получаем состояние пальцев (старый интерфейс)
+            if hasattr(self.current_exercise, 'get_finger_states'):
+                finger_states, tip_positions = self.current_exercise.get_finger_states(
+                    hand_landmarks, (h, w, 3)
+                )
+            else:
+                finger_states = [False] * 5
+                tip_positions = [(0, 0)] * 5
 
             # Проверяем упражнение
-            is_correct, message = self.current_exercise.check_fingers(
-                finger_states, hand_landmarks, (h, w, 3)
-            )
+            if hasattr(self.current_exercise, 'check_fingers'):
+                is_correct, message = self.current_exercise.check_fingers(
+                    finger_states, hand_landmarks, (h, w, 3)
+                )
+            elif hasattr(self.current_exercise, 'check'):
+                landmarks = {'hand': hand_landmarks, 'tip_positions': tip_positions}
+                is_correct, message = self.current_exercise.check(landmarks, (h, w, 3))
+            else:
+                is_correct, message = False, "Неизвестное упражнение"
 
             # Рисуем обратную связь
-            display_frame = self.current_exercise.draw_feedback(
-                display_frame, finger_states, tip_positions, is_correct, message
-            )
+            if hasattr(self.current_exercise, 'draw_feedback'):
+                display_frame = self.current_exercise.draw_feedback(
+                    display_frame, finger_states, tip_positions, is_correct, message
+                )
 
             raised_fingers = sum(finger_states)
 
@@ -311,6 +352,80 @@ class ExerciseManager:
 
         return self.success_response(display_frame, True, raised_fingers, finger_states, message)
 
+    def process_pose(self, results, display_frame, h, w):
+        """Обрабатывает кадр с позой (оптимизированно)"""
+        # Рисуем скелет
+        mp_drawing.draw_landmarks(
+            display_frame,
+            results.pose_landmarks,
+            mp_pose.POSE_CONNECTIONS,
+            mp_drawing_styles.get_default_pose_landmarks_style()
+        )
+
+        # Константы индексов MediaPipe Pose (для скорости)
+        NOSE = 0
+        LEFT_SHOULDER = 11
+        RIGHT_SHOULDER = 12
+
+        pose_landmarks = results.pose_landmarks.landmark
+
+        # Создаем словарь с УДОБНЫМИ СТРОКОВЫМИ КЛЮЧАМИ (именно их ждет NeckExercise)
+        landmarks = {
+            'nose': pose_landmarks[NOSE],
+            'left_shoulder': pose_landmarks[LEFT_SHOULDER],
+            'right_shoulder': pose_landmarks[RIGHT_SHOULDER],
+            # Добавляем индексы для обратной совместимости
+            NOSE: pose_landmarks[NOSE],
+            LEFT_SHOULDER: pose_landmarks[LEFT_SHOULDER],
+            RIGHT_SHOULDER: pose_landmarks[RIGHT_SHOULDER],
+        }
+
+        # Быстрая визуализация для отладки (нос и плечи)
+        nose = pose_landmarks[NOSE]
+        nx, ny = int(nose.x * w), int(nose.y * h)
+        cv2.circle(display_frame, (nx, ny), 8, (0, 255, 255), -1)
+        cv2.circle(display_frame, (nx, ny), 8, (255, 255, 255), 2)
+
+        ls = pose_landmarks[LEFT_SHOULDER]
+        rs = pose_landmarks[RIGHT_SHOULDER]
+        lx, ly = int(ls.x * w), int(ls.y * h)
+        rx, ry = int(rs.x * w), int(rs.y * h)
+        cv2.circle(display_frame, (lx, ly), 6, (255, 0, 0), -1)
+        cv2.circle(display_frame, (rx, ry), 6, (255, 0, 0), -1)
+        cv2.line(display_frame, (lx, ly), (rx, ry), (255, 255, 0), 2)
+
+        # Проверяем упражнение
+        if hasattr(self.current_exercise, 'check'):
+            is_correct, message = self.current_exercise.check(landmarks, (h, w, 3))
+        else:
+            is_correct, message = False, "Упражнение не поддерживает pose detection"
+
+        # Информационная панель
+        cv2.rectangle(display_frame, (5, 5), (450, 130), (0, 0, 0), -1)
+        cv2.rectangle(display_frame, (5, 5), (450, 130), (255, 255, 255), 1)
+
+        cv2.putText(display_frame, f"Exercise: {self.current_exercise.name[:25]}", (15, 30),
+                    cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 255, 255), 1)
+
+        # Показываем статус детекции
+        detection_status = "✅ BODY DETECTED" if results.pose_landmarks else "❌ NO BODY"
+        cv2.putText(display_frame, detection_status, (15, 55),
+                    cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 0), 1)
+
+        color = (0, 255, 0) if is_correct else (0, 0, 255)
+        msg = message[:45]
+        cv2.putText(display_frame, msg, (15, 80),
+                    cv2.FONT_HERSHEY_SIMPLEX, 0.55, color, 1)
+
+        # Статус калибровки
+        if hasattr(self.current_exercise, 'calibrated'):
+            calib_text = "✅ CALIBRATED" if self.current_exercise.calibrated else "⚠️ CALIBRATING..."
+            calib_color = (0, 255, 0) if self.current_exercise.calibrated else (0, 255, 255)
+            cv2.putText(display_frame, calib_text, (15, 105),
+                        cv2.FONT_HERSHEY_SIMPLEX, 0.5, calib_color, 1)
+
+        return self.success_response(display_frame, True, 0, [False]*5, message)
+
     def no_hand_response(self, display_frame):
         """Ответ когда нет руки"""
         cv2.rectangle(display_frame, (5, 5), (200, 50), (0, 0, 0), -1)
@@ -319,15 +434,22 @@ class ExerciseManager:
         log.debug("Рука не обнаружена")
         return self.success_response(display_frame, False, 0, [False]*5, "Рука не обнаружена")
 
-    def success_response(self, frame, hand_detected, raised, states, message):
+    def no_pose_response(self, display_frame):
+        """Ответ когда нет тела"""
+        cv2.rectangle(display_frame, (5, 5), (200, 50), (0, 0, 0), -1)
+        cv2.putText(display_frame, "NO BODY", (15, 35),
+                    cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 0, 255), 2)
+        log.debug("Тело не обнаружено")
+        return self.success_response(display_frame, False, 0, [False]*5, "Тело не обнаружено")
+
+    def success_response(self, frame, detected, raised, states, message):
         """Формирует успешный ответ"""
         try:
-            _, buffer = cv2.imencode('.jpg', frame, [cv2.IMWRITE_JPEG_QUALITY, 80])
+            _, buffer = cv2.imencode('.jpg', frame, [cv2.IMWRITE_JPEG_QUALITY, 70])
             frame_out = base64.b64encode(buffer).decode('utf-8')
 
             response = {
-                "fist_detected": hand_detected,
-                "hand_detected": hand_detected,
+                "hand_detected": detected,
                 "raised_fingers": raised,
                 "finger_states": states,
                 "message": message,
@@ -350,7 +472,6 @@ class ExerciseManager:
     def error_response(self, message):
         """Формирует ответ с ошибкой"""
         return {
-            "fist_detected": False,
             "hand_detected": False,
             "raised_fingers": 0,
             "finger_states": [False]*5,
@@ -367,10 +488,8 @@ class ExerciseManager:
         log.info("СТАТИСТИКА РАБОТЫ:")
         log.info(f"  Обработано кадров: {self.stats['frames_processed']}")
         log.info(f"  Рук обнаружено: {self.stats['hands_detected']}")
+        log.info(f"  Поз обнаружено: {self.stats['pose_detected']}")
         log.info(f"  Среднее время обработки: {self.stats['avg_processing_time']:.1f}ms")
-        detection_rate = (self.stats['hands_detected'] / self.stats['frames_processed'] * 100
-                          if self.stats['frames_processed'] > 0 else 0)
-        log.info(f"  Процент обнаружения: {detection_rate:.1f}%")
         log.info("=" * 60)
 
 # Создаем менеджер упражнений
@@ -544,7 +663,6 @@ def process_frame():
                     "finger_states": [False]*5,
                     "current_exercise": exercise_manager.current_exercise_id,
                     "exercise_name": exercise_manager.current_exercise.name if exercise_manager.current_exercise else "unknown",
-                    "fist_detected": False,
                     "structured": structured
                 })
             else:
@@ -579,7 +697,6 @@ def process_frame():
         import traceback
         traceback.print_exc()
         return jsonify({
-            "fist_detected": False,
             "hand_detected": False,
             "raised_fingers": 0,
             "message": f"Server error: {str(e)}",
@@ -628,7 +745,6 @@ def handle_frame(data):
                     log.info("Упражнение завершено и помечено для автосброса")
             else:
                 emit('feedback', {
-                    "fist_detected": False,
                     "hand_detected": False,
                     "raised_fingers": 0,
                     "message": "No frame data",
@@ -638,7 +754,6 @@ def handle_frame(data):
                 })
         else:
             emit('feedback', {
-                "fist_detected": False,
                 "hand_detected": False,
                 "raised_fingers": 0,
                 "message": "Invalid data format",
@@ -649,7 +764,6 @@ def handle_frame(data):
     except Exception as e:
         log.error(f"WebSocket ошибка: {e}")
         emit('feedback', {
-            "fist_detected": False,
             "hand_detected": False,
             "raised_fingers": 0,
             "message": f"WebSocket error: {str(e)}",

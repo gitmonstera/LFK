@@ -22,21 +22,24 @@ EXERCISE_URLS = {
     '1': f"{WS_BASE_URL}/ws/exercise/fist",
     '2': f"{WS_BASE_URL}/ws/exercise/fist-index",
     '3': f"{WS_BASE_URL}/ws/exercise/fist-palm",
-    '4': f"{WS_BASE_URL}/ws/exercise/finger-touching",  # Добавлено новое упражнение
+    '4': f"{WS_BASE_URL}/ws/exercise/finger-touching",
+    '5': f"{WS_BASE_URL}/ws/exercise/neck",  # Добавлено упражнение для шеи
 }
 
 EXERCISE_NAMES = {
     '1': "Кулак (все пальцы сжаты)",
     '2': "Кулак с указательным пальцем",
     '3': "Кулак-ладонь (кровообращение)",
-    '4': "Считалочка (поочередное касание пальцев)",  # Добавлено новое упражнение
+    '4': "Считалочка (поочередное касание пальцев)",
+    '5': "Упражнения для шеи",  # Добавлено новое упражнение
 }
 
 EXERCISE_TYPES = {
     '1': 'fist',
     '2': 'fist-index',
     '3': 'fist-palm',
-    '4': 'finger-touching',  # Добавлено новое упражнение
+    '4': 'finger-touching',
+    '5': 'neck',  # Добавлено новое упражнение
 }
 
 # Таймауты (в секундах)
@@ -910,6 +913,94 @@ def display_finger_touching_progress(data):
 
     print("-" * 60)
 
+def display_neck_progress(data):
+    """Отображает прогресс для упражнения для шеи"""
+    clear_screen()
+
+    print_header(f"🎯 {EXERCISE_NAMES['5']}")
+
+    # Получаем структурированные данные
+    structured = data.get('structured', {})
+    message = data.get('message', '')
+
+    # ВАЖНО: сервер присылает hand_detected, а не head_detected
+    # Для pose detection hand_detected означает, что тело обнаружено
+    body_detected = data.get('hand_detected', False)
+
+    # Статус детекции тела
+    body_symbol = "👤" if body_detected else "❌"
+    print(f"{body_symbol} Голова/тело: {'в кадре' if body_detected else 'не обнаружена'}")
+
+    # Если тело не обнаружено, показываем инструкцию
+    if not body_detected:
+        print(f"\n{Colors.YELLOW}💡 Встаньте так, чтобы вас было видно полностью (плечи и голова){Colors.END}")
+        print(f"{Colors.YELLOW}💡 Убедитесь, что камера направлена на вас{Colors.END}")
+
+    print("-" * 60)
+
+    # Отображаем прогресс упражнения
+    if structured:
+        state = structured.get('state', 'neutral')
+        current_cycle = structured.get('current_cycle', 0)
+        total_cycles = structured.get('total_cycles', 3)
+        countdown = structured.get('countdown')
+        progress_percent = structured.get('progress_percent', 0)
+        completed = structured.get('completed', False)
+        calibrated = structured.get('calibrated', False)
+
+        # Показываем статус калибровки
+        if not calibrated and not completed:
+            print(f"\n{Colors.YELLOW}🔧 КАЛИБРОВКА: Смотрите прямо 2 секунды...{Colors.END}")
+            if countdown:
+                print(f"⏱️ Осталось: {countdown}с")
+            print("-" * 60)
+
+        if completed:
+            print(f"\n{Colors.GREEN}🎉 УПРАЖНЕНИЕ ВЫПОЛНЕНО!{Colors.END}")
+        else:
+            print(f"📋 Прогресс: цикл {current_cycle + 1}/{total_cycles}")
+            print(f"   Общий прогресс: {progress_percent:.0f}%")
+
+            if countdown and "hold" in state:
+                print(f"⏱️ Осталось: {countdown}с")
+
+            print("\n🏋️ ТЕКУЩЕЕ УПРАЖНЕНИЕ:")
+
+            # Отображаем инструкции в зависимости от состояния
+            state_messages = {
+                "neutral": "Смотрите прямо",
+                "tilt_left": "Наклоните голову ВЛЕВО",
+                "hold_left": "Держите наклон влево",
+                "tilt_right": "Наклоните голову ВПРАВО",
+                "hold_right": "Держите наклон вправо",
+                "rotate_left": "Поверните голову ВЛЕВО",
+                "hold_rotate_left": "Держите поворот влево",
+                "rotate_right": "Поверните голову ВПРАВО",
+                "hold_rotate_right": "Держите поворот вправо",
+                "completed": "Упражнение завершено"
+            }
+
+            current_state_name = state_messages.get(state, state)
+            print(f"  {Colors.YELLOW}▶️ {current_state_name}{Colors.END}")
+
+            # Прогресс-бар для текущего упражнения
+            if countdown and progress_percent > 0:
+                bar_length = 30
+                filled = int(progress_percent / 100 * bar_length)
+                bar = "█" * filled + "░" * (bar_length - filled)
+                print(f"\n{Colors.CYAN}⏱️  Прогресс: [{bar}] {progress_percent:.0f}%{Colors.END}")
+
+    # Отображаем сообщение
+    if message:
+        if "🎉" in message:
+            print(f"\n{Colors.GREEN}{message}{Colors.END}")
+        elif "❌" in message:
+            print(f"\n{Colors.RED}{message}{Colors.END}")
+        else:
+            print(f"\n{Colors.YELLOW}{message}{Colors.END}")
+
+    print("-" * 60)
+
 def display_regular_exercise(data, exercise_name):
     """Отображает обычное упражнение"""
     clear_screen()
@@ -1125,6 +1216,30 @@ def connect_and_run(exercise_key):
 
                                     workout_ended = True
                                     break
+                            elif exercise_key == '5':
+                                # Новое упражнение для шеи
+                                if data:
+                                    display_neck_progress(data)
+                                else:
+                                    print(f"{Colors.RED}❌ Нет данных от сервера{Colors.END}")
+                                    continue
+
+                                # Безопасно извлекаем данные
+                                structured = data.get('structured', {}) if isinstance(data, dict) else {}
+                                completed = structured.get('completed', False) if isinstance(structured, dict) else False
+
+                                if completed and not exercise_completed:
+                                    exercise_completed = True
+                                    print(f"\n{Colors.YELLOW}🎯 УПРАЖНЕНИЕ ВЫПОЛНЕНО!{Colors.END}")
+
+                                    if add_exercise_set(session_id, exercise_type, 5, 60, 95.0):
+                                        print(f"{Colors.GREEN}✅ Статистика сохранена!{Colors.END}")
+
+                                    if end_workout(session_id):
+                                        print(f"{Colors.GREEN}✅ Тренировка завершена!{Colors.END}")
+
+                                    workout_ended = True
+                                    break
                             else:
                                 display_regular_exercise(data, exercise_name)
 
@@ -1233,7 +1348,7 @@ def wait_for_exercise_reset(exercise_type, max_attempts=10):
 
             print(f"🔄 Проверка состояния: цикл={current_cycle}, состояние={state_name}, завершено={completed}")
 
-            if not completed and current_cycle == 0 and (state_name == 'waiting_fist' or state_name == 'waiting_start'):
+            if not completed and current_cycle == 0 and (state_name == 'waiting_fist' or state_name == 'waiting_start' or state_name == 'waiting_neutral'):
                 print(f"{Colors.GREEN}✅ Упражнение готово к началу{Colors.END}")
                 return True
 
@@ -1273,7 +1388,7 @@ def main():
         elif choice == '3' and auth_token and user_info:
             while True:
                 print_exercise_menu()
-                ex_choice = input("\nВыберите упражнение (1-4, b - назад): ").strip().lower()
+                ex_choice = input("\nВыберите упражнение (1-5, b - назад): ").strip().lower()
 
                 if ex_choice == 'b':
                     break
