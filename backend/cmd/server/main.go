@@ -231,6 +231,9 @@ func setupRouter(
 		ws.GET("/exercise/finger-touching", func(c *gin.Context) {
 			exerciseHandler.HandleWebSocket(c.Writer, c.Request, "finger-touching")
 		})
+		ws.GET("/exercise/neck", func(c *gin.Context) {
+			exerciseHandler.HandleWebSocket(c.Writer, c.Request, "neck")
+		})
 	}
 
 	// ============ СТАТИЧЕСКИЕ ФАЙЛЫ (для всех не найденных маршрутов) ============
