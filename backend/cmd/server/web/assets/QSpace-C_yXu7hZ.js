@@ -1,0 +1,1 @@
+import{K as e,pt as t}from"./QBtn-TcwUefG5.js";var n=e({name:`QSpace`,setup(){let e=t(`div`,{class:`q-space`});return()=>e}});export{n as t};
