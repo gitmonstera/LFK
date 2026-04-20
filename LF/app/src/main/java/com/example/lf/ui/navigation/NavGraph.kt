@@ -11,6 +11,7 @@ import com.example.lf.ui.screens.MainMenuScreen
 import com.example.lf.ui.screens.ProfileScreen
 import com.example.lf.ui.screens.RegisterScreen
 import com.example.lf.ui.screens.StatsScreen
+import com.example.lf.ui.screens.ExerciseScreen
 import com.example.lf.viewmodel.AuthViewModel
 import com.example.lf.viewmodel.ExerciseViewModel
 import com.example.lf.viewmodel.StatsViewModel
@@ -67,7 +68,12 @@ fun NavGraph(
         }
         composable(Screen.Exercise.route) { backStackEntry ->
             val exerciseId = backStackEntry.arguments?.getString("exerciseId") ?: "fist"
-            // ExerciseScreen будет добавлен позже
+            ExerciseScreen(
+                navController = navController,
+                exerciseId = exerciseId,
+                authViewModel = authViewModel,
+                statsViewModel = statsViewModel
+            )
         }
         composable(Screen.Stats.route) {
             StatsScreen(

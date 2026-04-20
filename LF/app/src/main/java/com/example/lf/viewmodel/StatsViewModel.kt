@@ -7,6 +7,7 @@ import androidx.lifecycle.viewModelScope
 import com.example.lf.api.ApiClient
 import com.example.lf.api.DailyStatsResponse
 import com.example.lf.api.ExerciseResponse
+import com.example.lf.api.ExerciseResultRequest
 import com.example.lf.api.ExerciseStatResponse
 import com.example.lf.api.OverallStatsResponse
 import com.example.lf.api.WorkoutHistoryResponse
@@ -160,5 +161,35 @@ class StatsViewModel : ViewModel() {
 
     fun clearError() {
         _error.value = null
+    }
+
+    // Добавьте в StatsViewModel.kt
+    fun saveExerciseResult(token: String, exerciseId: String, repetitions: Int, duration: Int, accuracy: Float) {
+        viewModelScope.launch {
+            try {
+                // Сначала получаем или создаем сессию
+                val sessionResponse = ApiClient.apiService.startWorkout("Bearer $token")
+                if (sessionResponse.isSuccessful && sessionResponse.body() != null) {
+                    val sessionId = sessionResponse.body()!!.id
+
+                    val request = ExerciseResultRequest(
+                        session_id = sessionId,
+                        exercise_id = exerciseId,
+                        actual_repetitions = repetitions,
+                        actual_duration = duration,
+                        accuracy_score = accuracy
+                    )
+
+                    val response = ApiClient.apiService.addExerciseSet("Bearer $token", request)
+                    if (response.isSuccessful) {
+                        // Завершаем сессию
+                        ApiClient.apiService.endWorkout("Bearer $token", mapOf("session_id" to sessionId))
+                        android.util.Log.d("StatsViewModel", "Результат сохранен: $exerciseId")
+                    }
+                }
+            } catch (e: Exception) {
+                android.util.Log.e("StatsViewModel", "Ошибка сохранения результата", e)
+            }
+        }
     }
 }

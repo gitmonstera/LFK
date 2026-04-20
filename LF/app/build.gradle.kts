@@ -39,8 +39,10 @@ android {
         targetCompatibility = JavaVersion.VERSION_11
     }
 
-    kotlinOptions {
-        jvmTarget = "11"
+    kotlin {
+        compilerOptions {
+            jvmTarget = org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_11
+        }
     }
 
     buildFeatures {
@@ -64,21 +66,13 @@ dependencies {
     implementation("androidx.navigation:navigation-compose:2.8.9")
 
     // CameraX
-    implementation("androidx.camera:camera-core:1.4.0")
-    implementation("androidx.camera:camera-camera2:1.4.0")
-    implementation("androidx.camera:camera-lifecycle:1.4.0")
-    implementation("androidx.camera:camera-view:1.4.0")
+    implementation("androidx.camera:camera-core:1.3.0")
+    implementation("androidx.camera:camera-camera2:1.3.0")
+    implementation("androidx.camera:camera-lifecycle:1.3.0")
+    implementation("androidx.camera:camera-view:1.3.0")
 
-    // Permissions
-    implementation("com.google.accompanist:accompanist-permissions:0.36.0")
-
-    // Image loading
-    implementation("io.coil-kt:coil-compose:2.7.0")
-
-    // MediaPipe
+    // MediaPipe - правильная версия
     implementation("com.google.mediapipe:tasks-vision:0.10.14")
-    implementation("com.google.mediapipe:tasks-text:0.10.14")
-    implementation("com.google.mediapipe:tasks-audio:0.10.14")
 
     implementation("com.squareup.retrofit2:retrofit:2.11.0")
     implementation("com.squareup.retrofit2:converter-gson:2.11.0")
@@ -94,9 +88,6 @@ dependencies {
     debugImplementation("androidx.compose.ui:ui-test-manifest")
 
     implementation("com.google.code.gson:gson:2.10.1")
-    implementation("com.squareup.retrofit2:converter-gson:2.9.0")
-
     implementation("androidx.lifecycle:lifecycle-runtime-compose:2.8.7")
-
     implementation("androidx.compose.runtime:runtime-livedata:1.7.6")
 }
