@@ -1,12 +1,18 @@
 plugins {
     id("com.android.application")
     id("org.jetbrains.kotlin.android")
-    id("org.jetbrains.kotlin.plugin.compose") version "2.0.21"  // Добавьте эту строку
+    id("org.jetbrains.kotlin.plugin.compose") version "2.0.21"
 }
 
 android {
     namespace = "com.example.lf"
     compileSdk = 35
+
+    sourceSets {
+        getByName("main") {
+            res.srcDirs("src/main/res")
+        }
+    }
 
     defaultConfig {
         applicationId = "com.example.lf"
@@ -38,7 +44,7 @@ android {
     }
 
     buildFeatures {
-        compose = true  // Включите Compose
+        compose = true
     }
 }
 
@@ -54,6 +60,30 @@ dependencies {
     implementation("androidx.compose.ui:ui-tooling-preview")
     implementation("androidx.compose.material3:material3")
 
+    // Navigation
+    implementation("androidx.navigation:navigation-compose:2.8.9")
+
+    // CameraX
+    implementation("androidx.camera:camera-core:1.4.0")
+    implementation("androidx.camera:camera-camera2:1.4.0")
+    implementation("androidx.camera:camera-lifecycle:1.4.0")
+    implementation("androidx.camera:camera-view:1.4.0")
+
+    // Permissions
+    implementation("com.google.accompanist:accompanist-permissions:0.36.0")
+
+    // Image loading
+    implementation("io.coil-kt:coil-compose:2.7.0")
+
+    // MediaPipe
+    implementation("com.google.mediapipe:tasks-vision:0.10.14")
+    implementation("com.google.mediapipe:tasks-text:0.10.14")
+    implementation("com.google.mediapipe:tasks-audio:0.10.14")
+
+    implementation("com.squareup.retrofit2:retrofit:2.11.0")
+    implementation("com.squareup.retrofit2:converter-gson:2.11.0")
+    implementation("com.squareup.okhttp3:logging-interceptor:4.12.0")
+
     testImplementation("junit:junit:4.13.2")
     androidTestImplementation("androidx.test.ext:junit:1.2.1")
     androidTestImplementation("androidx.test.espresso:espresso-core:3.6.1")
@@ -62,4 +92,11 @@ dependencies {
 
     debugImplementation("androidx.compose.ui:ui-tooling")
     debugImplementation("androidx.compose.ui:ui-test-manifest")
+
+    implementation("com.google.code.gson:gson:2.10.1")
+    implementation("com.squareup.retrofit2:converter-gson:2.9.0")
+
+    implementation("androidx.lifecycle:lifecycle-runtime-compose:2.8.7")
+
+    implementation("androidx.compose.runtime:runtime-livedata:1.7.6")
 }

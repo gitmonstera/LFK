@@ -1,4 +1,4 @@
-// cmd/main.go - исправленный импорт и инициализация
+// cmd/main.go
 
 package main
 
