@@ -88,26 +88,21 @@
 | | | |
 |:---:|:---:|:---:|
 | **Вход** | **Регистрация** | **Главное меню** |
-| <img src="resours/screen/LoginScreen.jpg" width="200"/> | <img src="resours/screen/RegisterScreen.jpg" width="200"/> | <img src="resours/screen/MainMenuScreen.jpg" width="200"/> |
+| <img src="resours/screen/Вход.jpg" width="200"/> | <img src="resours/screen/Регистрация.jpg" width="200"/> | <img src="resours/screen/Главное%20окно.jpg" width="200"/> |
 
 ### 👤 Профиль и статистика
 
 | | | |
 |:---:|:---:|:---:|
-| **Профиль** | **Общая статистика** | **Статистика за день** |
-| <img src="resours/screen/ProfileScreen.jpg" width="200"/> | <img src="resours/screen/StatsScreen1.jpg" width="200"/> | <img src="resours/screen/StatsScreen2.jpg" width="200"/> |
-
-| | | |
-|:---:|:---:|:---:|
-| **Недельная статистика** | **Месячная статистика** | **Статистика по упражнениям** |
-| <img src="resours/screen/StatsScreen3.jpg" width="200"/> | <img src="resours/screen/StatsScreen4.jpg" width="200"/> | <img src="resours/screen/StatsScreen5.jpg" width="200"/> |
+| **Профиль** | **Общая статистика** | **Статистика за месяц** |
+| <img src="resours/screen/Профиль.jpg" width="200"/> | <img src="resours/screen/Вся%20статистика.jpg" width="200"/> | <img src="resours/screen/Статистика%20месяц.jpg" width="200"/> |
 
 ### 🎯 Выполнение упражнения
 
 | | | |
 |:---:|:---:|:---:|
-| **Список упражнений** | **Процесс выполнения** | **Результат** |
-| <img src="resours/screen/ExercisesScreen.jpg" width="200"/> | <img src="resours/screen/ExerciseScreen.jpg" width="200"/> | <img src="resours/screen/StatsScreen6.jpg" width="200"/> |
+| **Список упражнений** | **Процесс выполнения** |
+| <img src="resours/screen/Упражнения.jpg" width="200"/> | <img src="resours/screen/Пример%20упражнения.jpg" width="200"/> |
 
 </div>
 
