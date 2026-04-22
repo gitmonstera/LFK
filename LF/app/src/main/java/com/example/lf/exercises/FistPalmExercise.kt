@@ -4,20 +4,51 @@ import com.google.mediapipe.tasks.components.containers.NormalizedLandmark
 
 class FistPalmExercise : BaseExercise() {
 
+    companion object {
+
+        private const val DEFAULT_TOTAL_CYCLES = 5
+        private const val DEFAULT_HOLD_DURATION_MS = 2500L
+
+        private const val STATE_WAITING_FIST = "waiting_fist"
+        private const val STATE_HOLDING_FIST = "holding_fist"
+        private const val STATE_WAITING_PALM = "waiting_palm"
+        private const val STATE_HOLDING_PALM = "holding_palm"
+        private const val STATE_COMPLETED = "completed"
+
+        private const val MAX_FINGERS_FOR_FIST = 1
+        private const val MIN_FINGERS_FOR_PALM = 4
+
+        private const val MSG_NEED_CALIBRATION = "✋ Покажите раскрытую ладонь для калибровки"
+        private const val MSG_COMPLETED = "🎉 Упражнение завершено! Отличная работа!"
+    }
+
+    private var calibrationData: List<NormalizedLandmark>? = null
+    override var calibrated: Boolean = false
+
     init {
         name = "Кулак-ладонь"
-        description = "Чередование кулака и ладони"
+        description = "Чередование кулака и ладони для улучшения кровообращения"
         exerciseId = "fist-palm"
-        totalCycles = 5
-        holdDuration = 2500L
+        totalCycles = DEFAULT_TOTAL_CYCLES
+        holdDuration = DEFAULT_HOLD_DURATION_MS
     }
 
     override fun reset() {
         super.reset()
-        state = "waiting_fist"
+        state = STATE_WAITING_FIST
         currentCycle = 0
         completed = false
+        calibrated = false
+        calibrationData = null
+        autoReset = false
+    }
+
+    fun calibrate(landmarks: List<NormalizedLandmark>) {
+        calibrationData = landmarks.toList()
         calibrated = true
+        state = STATE_WAITING_FIST
+        currentCycle = 0
+        completed = false
     }
 
     override fun checkFingers(
@@ -26,90 +57,119 @@ class FistPalmExercise : BaseExercise() {
         frameWidth: Int,
         frameHeight: Int
     ): Pair<Boolean, String> {
-        if (autoReset) {
+
+        if (autoReset && completed) {
             reset()
             autoReset = false
         }
 
         if (completed) {
-            return Pair(true, "🎉 Упражнение завершено!")
+            return Pair(true, MSG_COMPLETED)
+        }
+
+        if (!calibrated) {
+            return Pair(false, MSG_NEED_CALIBRATION)
         }
 
         val raisedFingers = fingerStates.count { it }
+        val isFist = raisedFingers <= MAX_FINGERS_FOR_FIST
+        val isPalm = raisedFingers >= MIN_FINGERS_FOR_PALM
         val currentTime = System.currentTimeMillis()
-        val isFist = raisedFingers <= 1
-        val isPalm = raisedFingers >= 4
 
         when (state) {
-            "waiting_fist" -> {
+            STATE_WAITING_FIST -> {
                 if (isFist) {
-                    state = "holding_fist"
+                    state = STATE_HOLDING_FIST
                     holdStart = currentTime
                 }
             }
-            "holding_fist" -> {
+            STATE_HOLDING_FIST -> {
                 if (!isFist) {
-                    state = "waiting_fist"
+                    state = STATE_WAITING_FIST
                 } else if (currentTime - holdStart >= holdDuration) {
-                    state = "waiting_palm"
+                    state = STATE_WAITING_PALM
                 }
             }
-            "waiting_palm" -> {
+            STATE_WAITING_PALM -> {
                 if (isPalm) {
-                    state = "holding_palm"
+                    state = STATE_HOLDING_PALM
                     holdStart = currentTime
                 }
             }
-            "holding_palm" -> {
+            STATE_HOLDING_PALM -> {
                 if (!isPalm) {
-                    state = "waiting_palm"
+                    state = STATE_WAITING_PALM
                 } else if (currentTime - holdStart >= holdDuration) {
                     currentCycle++
+                    cycleCompleted = true
+
                     if (currentCycle >= totalCycles) {
                         completed = true
                         autoReset = true
                     } else {
-                        state = "waiting_fist"
+                        state = STATE_WAITING_FIST
                     }
-                    cycleCompleted = true
                 }
             }
         }
 
-        val message = when {
-            completed -> "🎉 Упражнение завершено!"
-            state == "holding_fist" -> {
-                val remaining = (holdDuration - (currentTime - holdStart)) / 1000
-                "Держите кулак... ${remaining.toInt() + 1}с (${currentCycle + 1}/$totalCycles)"
-            }
-            state == "holding_palm" -> {
-                val remaining = (holdDuration - (currentTime - holdStart)) / 1000
-                "Держите ладонь... ${remaining.toInt() + 1}с (${currentCycle + 1}/$totalCycles)"
-            }
-            state == "waiting_fist" -> "Сожмите кулак (${currentCycle + 1}/$totalCycles)"
-            else -> "Раскройте ладонь (${currentCycle + 1}/$totalCycles)"
-        }
+        val message = buildMessage(raisedFingers)
+        val isHolding = (state == STATE_HOLDING_FIST || state == STATE_HOLDING_PALM)
 
-        return Pair(state.contains("holding"), message)
+        return Pair(isHolding, message)
+    }
+
+    private fun buildMessage(raisedFingers: Int): String {
+        val cycleInfo = "${currentCycle + 1}/$totalCycles"
+        val remainingSec = if (state == STATE_HOLDING_FIST || state == STATE_HOLDING_PALM) {
+            val elapsed = System.currentTimeMillis() - holdStart
+            val remaining = (holdDuration - elapsed) / 1000
+            (remaining + 1).toInt()
+        } else null
+
+        return when (state) {
+            STATE_COMPLETED -> MSG_COMPLETED
+            STATE_HOLDING_FIST -> "Держите кулак... ${remainingSec}с ($cycleInfo)"
+            STATE_HOLDING_PALM -> "Держите ладонь... ${remainingSec}с ($cycleInfo)"
+            STATE_WAITING_FIST -> {
+                val hint = if (raisedFingers > MAX_FINGERS_FOR_FIST)
+                    " (поднято пальцев: $raisedFingers, нужно ≤ $MAX_FINGERS_FOR_FIST)"
+                else ""
+                "Сожмите кулак$hint ($cycleInfo)"
+            }
+            STATE_WAITING_PALM -> {
+                val hint = if (raisedFingers < MIN_FINGERS_FOR_PALM)
+                    " (поднято пальцев: $raisedFingers, нужно ≥ $MIN_FINGERS_FOR_PALM)"
+                else ""
+                "Раскройте ладонь$hint ($cycleInfo)"
+            }
+            else -> "Ожидание ($cycleInfo)"
+        }
     }
 
     override fun getFingerColors(fingerStates: List<Boolean>): List<Int> {
-        val colors = mutableListOf<Int>()
-        val isFistPhase = state == "waiting_fist" || state == "holding_fist"
-        val isPalmPhase = state == "waiting_palm" || state == "holding_palm"
-        val isHolding = state == "holding_fist" || state == "holding_palm"
+        val isHolding = (state == STATE_HOLDING_FIST || state == STATE_HOLDING_PALM)
+        val isFistPhase = (state == STATE_WAITING_FIST || state == STATE_HOLDING_FIST)
+        val isPalmPhase = (state == STATE_WAITING_PALM || state == STATE_HOLDING_PALM)
 
-        for (isRaised in fingerStates) {
-            colors.add(
-                when {
-                    isFistPhase && !isRaised && isHolding -> COLORS["green"]!!
-                    isFistPhase && !isRaised -> COLORS["cyan"]!!
-                    isPalmPhase && isRaised && isHolding -> COLORS["green"]!!
-                    isPalmPhase && isRaised -> COLORS["cyan"]!!
-                    else -> COLORS["red"]!!
-                }
-            )
+        return fingerStates.map { isRaised ->
+            when {
+
+                isFistPhase && !isRaised && isHolding -> COLORS["green"]!!
+                isFistPhase && !isRaised -> COLORS["cyan"]!!
+
+                isPalmPhase && isRaised && isHolding -> COLORS["green"]!!
+                isPalmPhase && isRaised -> COLORS["cyan"]!!
+
+                else -> COLORS["red"]!!
+            }
         }
-        return colors
+    }
+
+    fun forceResetIfNeeded(): Boolean {
+        return if (completed || state == STATE_COMPLETED) {
+            reset()
+            true
+        } else false
     }
 }

@@ -27,7 +27,7 @@ abstract class BaseExercise {
     var completed: Boolean = false
     var autoReset: Boolean = false
     var cycleCompleted: Boolean = false
-    var calibrated: Boolean = false
+    open var calibrated: Boolean = false
 
     // Калибровка
     var calibrationStart: Long = 0L
