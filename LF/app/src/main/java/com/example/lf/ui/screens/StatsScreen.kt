@@ -13,6 +13,7 @@ import androidx.compose.ui.draw.blur
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -77,6 +78,7 @@ fun StatsScreen(
                 )
             )
     ) {
+        // Декоративный размытый элемент
         Box(
             modifier = Modifier
                 .size(400.dp)
@@ -90,6 +92,7 @@ fun StatsScreen(
                 .fillMaxSize()
                 .padding(24.dp)
         ) {
+            // Заголовок с кнопкой назад
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 verticalAlignment = Alignment.CenterVertically
@@ -105,12 +108,15 @@ fun StatsScreen(
                     text = "Статистика",
                     fontSize = 24.sp,
                     fontWeight = FontWeight.Bold,
-                    color = TextPrimary
+                    color = TextPrimary,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
                 )
             }
 
             Spacer(modifier = Modifier.height(24.dp))
 
+            // Кнопки выбора периода
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(12.dp)
@@ -145,6 +151,7 @@ fun StatsScreen(
                 LazyColumn(
                     verticalArrangement = Arrangement.spacedBy(16.dp)
                 ) {
+                    // Общая сводка
                     item {
                         StatsOverviewCard(
                             totalSessions = overallStats?.totalSessions ?: 0,
@@ -153,30 +160,33 @@ fun StatsScreen(
                         )
                     }
 
-                    if (selectedPeriod == "week" && weeklyStats.isNotEmpty()) {
-                        item {
-                            WeeklyChartCard(weeklyStats = weeklyStats)
+                    // График для выбранного периода
+                    when (selectedPeriod) {
+                        "week" -> {
+                            if (weeklyStats.isNotEmpty()) {
+                                item { WeeklyChartCard(weeklyStats = weeklyStats) }
+                            }
+                        }
+                        "month" -> {
+                            if (monthlyStats.isNotEmpty()) {
+                                item { MonthlyStatsCard(monthlyStats = monthlyStats) }
+                            }
+                        }
+                        "all" -> {
+                            if (overallStats != null) {
+                                item { AllTimeStatsCard(stats = overallStats!!) }
+                            }
                         }
                     }
 
-                    if (selectedPeriod == "month" && monthlyStats.isNotEmpty()) {
-                        item {
-                            MonthlyStatsCard(monthlyStats = monthlyStats)
-                        }
+                    // Топ упражнений
+                    if (exerciseStats.isNotEmpty()) {
+                        item { TopExercisesCard(exerciseStats = exerciseStats) }
                     }
 
-                    if (selectedPeriod == "all" && overallStats != null) {
-                        item {
-                            AllTimeStatsCard(stats = overallStats!!)
-                        }
-                    }
-
-                    item {
-                        TopExercisesCard(exerciseStats = exerciseStats)
-                    }
-
-                    item {
-                        HistoryCard(workoutHistory = workoutHistory)
+                    // История тренировок
+                    if (workoutHistory.isNotEmpty()) {
+                        item { HistoryCard(workoutHistory = workoutHistory) }
                     }
                 }
             }
@@ -195,7 +205,9 @@ fun StatsOverviewCard(
             text = "Общая статистика",
             fontSize = 16.sp,
             fontWeight = FontWeight.SemiBold,
-            color = TextPrimary
+            color = TextPrimary,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis
         )
 
         Spacer(modifier = Modifier.height(16.dp))
@@ -233,7 +245,9 @@ fun WeeklyChartCard(weeklyStats: List<DailyStatsResponse>) {
             text = "Прогресс за неделю",
             fontSize = 16.sp,
             fontWeight = FontWeight.SemiBold,
-            color = TextPrimary
+            color = TextPrimary,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis
         )
 
         Spacer(modifier = Modifier.height(16.dp))
@@ -265,7 +279,8 @@ fun WeeklyChartCard(weeklyStats: List<DailyStatsResponse>) {
                     Text(
                         day.statDate.substring(5, 10),
                         fontSize = 10.sp,
-                        color = TextSecondary
+                        color = TextSecondary,
+                        maxLines = 1
                     )
                 }
             }
@@ -277,7 +292,8 @@ fun WeeklyChartCard(weeklyStats: List<DailyStatsResponse>) {
             fontSize = 10.sp,
             color = TextSecondary,
             modifier = Modifier.fillMaxWidth(),
-            textAlign = androidx.compose.ui.text.style.TextAlign.Center
+            textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+            maxLines = 1
         )
     }
 }
@@ -289,7 +305,9 @@ fun MonthlyStatsCard(monthlyStats: List<DailyStatsResponse>) {
             text = "Статистика за месяц",
             fontSize = 16.sp,
             fontWeight = FontWeight.SemiBold,
-            color = TextPrimary
+            color = TextPrimary,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis
         )
 
         Spacer(modifier = Modifier.height(12.dp))
@@ -310,9 +328,15 @@ fun MonthlyStatsCard(monthlyStats: List<DailyStatsResponse>) {
                     text = "$totalSessions",
                     fontSize = 24.sp,
                     fontWeight = FontWeight.Bold,
-                    color = Primary
+                    color = Primary,
+                    maxLines = 1
                 )
-                Text("Тренировок", fontSize = 11.sp, color = TextSecondary)
+                Text(
+                    "Тренировок",
+                    fontSize = 11.sp,
+                    color = TextSecondary,
+                    maxLines = 1
+                )
             }
             Column(
                 modifier = Modifier.weight(1f),
@@ -322,9 +346,15 @@ fun MonthlyStatsCard(monthlyStats: List<DailyStatsResponse>) {
                     text = "$totalMinutes",
                     fontSize = 24.sp,
                     fontWeight = FontWeight.Bold,
-                    color = Secondary
+                    color = Secondary,
+                    maxLines = 1
                 )
-                Text("Минут", fontSize = 11.sp, color = TextSecondary)
+                Text(
+                    "Минут",
+                    fontSize = 11.sp,
+                    color = TextSecondary,
+                    maxLines = 1
+                )
             }
             Column(
                 modifier = Modifier.weight(1f),
@@ -334,9 +364,15 @@ fun MonthlyStatsCard(monthlyStats: List<DailyStatsResponse>) {
                     text = "$activeDays",
                     fontSize = 24.sp,
                     fontWeight = FontWeight.Bold,
-                    color = Success
+                    color = Success,
+                    maxLines = 1
                 )
-                Text("Дней", fontSize = 11.sp, color = TextSecondary)
+                Text(
+                    "Дней",
+                    fontSize = 11.sp,
+                    color = TextSecondary,
+                    maxLines = 1
+                )
             }
         }
     }
@@ -349,7 +385,9 @@ fun AllTimeStatsCard(stats: OverallStatsResponse) {
             text = "За все время",
             fontSize = 16.sp,
             fontWeight = FontWeight.SemiBold,
-            color = TextPrimary
+            color = TextPrimary,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis
         )
 
         Spacer(modifier = Modifier.height(12.dp))
@@ -366,9 +404,15 @@ fun AllTimeStatsCard(stats: OverallStatsResponse) {
                     text = "${stats.totalSessions}",
                     fontSize = 24.sp,
                     fontWeight = FontWeight.Bold,
-                    color = Primary
+                    color = Primary,
+                    maxLines = 1
                 )
-                Text("Тренировок", fontSize = 11.sp, color = TextSecondary)
+                Text(
+                    "Тренировок",
+                    fontSize = 11.sp,
+                    color = TextSecondary,
+                    maxLines = 1
+                )
             }
             Column(
                 modifier = Modifier.weight(1f),
@@ -378,9 +422,15 @@ fun AllTimeStatsCard(stats: OverallStatsResponse) {
                     text = "${stats.totalDuration / 60}",
                     fontSize = 24.sp,
                     fontWeight = FontWeight.Bold,
-                    color = Secondary
+                    color = Secondary,
+                    maxLines = 1
                 )
-                Text("Минут", fontSize = 11.sp, color = TextSecondary)
+                Text(
+                    "Минут",
+                    fontSize = 11.sp,
+                    color = TextSecondary,
+                    maxLines = 1
+                )
             }
             Column(
                 modifier = Modifier.weight(1f),
@@ -390,9 +440,15 @@ fun AllTimeStatsCard(stats: OverallStatsResponse) {
                     text = "${stats.currentStreak}",
                     fontSize = 24.sp,
                     fontWeight = FontWeight.Bold,
-                    color = Success
+                    color = Success,
+                    maxLines = 1
                 )
-                Text("Серия", fontSize = 11.sp, color = TextSecondary)
+                Text(
+                    "Серия",
+                    fontSize = 11.sp,
+                    color = TextSecondary,
+                    maxLines = 1
+                )
             }
         }
     }
@@ -407,7 +463,9 @@ fun TopExercisesCard(exerciseStats: List<ExerciseStatResponse>) {
             text = "Любимые упражнения",
             fontSize = 16.sp,
             fontWeight = FontWeight.SemiBold,
-            color = TextPrimary
+            color = TextPrimary,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis
         )
 
         Spacer(modifier = Modifier.height(12.dp))
@@ -431,7 +489,9 @@ fun HistoryCard(workoutHistory: List<WorkoutHistoryResponse>) {
             text = "Последние тренировки",
             fontSize = 16.sp,
             fontWeight = FontWeight.SemiBold,
-            color = TextPrimary
+            color = TextPrimary,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis
         )
 
         Spacer(modifier = Modifier.height(12.dp))
