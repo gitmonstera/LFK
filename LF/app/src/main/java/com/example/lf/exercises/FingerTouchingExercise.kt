@@ -1,8 +1,13 @@
 package com.example.lf.exercises
 
+import android.graphics.Canvas
+import android.graphics.Color
+import android.graphics.Paint
 import com.google.mediapipe.tasks.components.containers.NormalizedLandmark
 import kotlin.math.abs
 import kotlin.math.max
+import kotlin.math.min
+
 
 class FingerTouchingExercise : BaseExercise() {
 
@@ -39,7 +44,6 @@ class FingerTouchingExercise : BaseExercise() {
                 return
             }
 
-            // Собираем данные о размерах пальцев
             for (i in 0 until 5) {
                 val tip = landmarks[FINGER_TIPS[i]]
                 val mcp = landmarks[FINGER_MCP[i]]
@@ -62,7 +66,7 @@ class FingerTouchingExercise : BaseExercise() {
         frameWidth: Int,
         frameHeight: Int
     ): Pair<Boolean, String> {
-        // Автосброс
+
         if (autoReset) {
             reset()
             autoReset = false
@@ -72,7 +76,6 @@ class FingerTouchingExercise : BaseExercise() {
             return Pair(true, getStateMessage())
         }
 
-        // Калибровка
         calibrateFingerSizes(landmarks)
 
         if (!calibrated) {
@@ -81,12 +84,10 @@ class FingerTouchingExercise : BaseExercise() {
 
         val currentTime = System.currentTimeMillis()
 
-        // Получаем координаты большого и целевого пальцев
         val thumb = landmarks[FINGER_TIPS[0]]
         val targetIdx = currentFinger + 1
         val target = landmarks[FINGER_TIPS[targetIdx]]
 
-        // Манхэттенское расстояние
         val dx = thumb.x() - target.x()
         val dy = thumb.y() - target.y()
         val distance = abs(dx) + abs(dy)
@@ -146,5 +147,94 @@ class FingerTouchingExercise : BaseExercise() {
             }
         }
         return colors
+    }
+
+    override fun drawFeedback(
+        canvas: Canvas,
+        fingerStates: List<Boolean>,
+        tipPositions: List<Pair<Int, Int>>,
+        isCorrect: Boolean,
+        message: String,
+        frameWidth: Int,
+        frameHeight: Int
+    ) {
+
+        val colors = getFingerColors(fingerStates)
+        for (i in tipPositions.indices) {
+            val (x, y) = tipPositions[i]
+            val color = if (i < colors.size) colors[i] else COLORS["gray"]!!
+
+            val baseRadius = 25f
+            val radius = if (calibrated && i < fingerSizes.size) {
+                min(baseRadius + fingerSizes[i] * 80f, 40f)
+            } else {
+                baseRadius
+            }
+
+            canvas.drawCircle(x.toFloat(), y.toFloat(), radius, Paint().apply {
+                this.color = color
+                style = Paint.Style.FILL
+                isAntiAlias = true
+            })
+
+            canvas.drawCircle(x.toFloat(), y.toFloat(), radius, Paint().apply {
+                this.color = Color.WHITE
+                style = Paint.Style.STROKE
+                strokeWidth = 3f
+                isAntiAlias = true
+            })
+
+            canvas.drawText((i + 1).toString(), x.toFloat(), y.toFloat() + 6f, Paint().apply {
+                this.color = Color.WHITE
+                textSize = 18f
+                textAlign = Paint.Align.CENTER
+                isAntiAlias = true
+                setShadowLayer(4f, 0f, 0f, Color.BLACK)
+            })
+        }
+
+        canvas.drawRect(5f, 5f, 400f, 95f, Paint().apply {
+            color = Color.argb(180, 0, 0, 0)
+            style = Paint.Style.FILL
+        })
+
+        canvas.drawText(name, 15f, 28f, Paint().apply {
+            color = Color.WHITE
+            textSize = 18f
+            isAntiAlias = true
+        })
+
+        if (!calibrated) {
+            canvas.drawText("КАЛИБРОВКА...", 15f, 48f, Paint().apply {
+                color = Color.CYAN
+                textSize = 16f
+                isAntiAlias = true
+            })
+        } else {
+            val progress = getProgressPercent()
+            val barWidth = (progress / 100f) * 250f
+
+            canvas.drawRect(15f, 40f, 15f + 250f, 52f, Paint().apply {
+                color = Color.DKGRAY
+                style = Paint.Style.FILL
+            })
+
+            canvas.drawRect(15f, 40f, 15f + barWidth, 52f, Paint().apply {
+                color = Color.GREEN
+                style = Paint.Style.FILL
+            })
+
+            canvas.drawText("$progress%", 280f, 50f, Paint().apply {
+                color = Color.WHITE
+                textSize = 14f
+                isAntiAlias = true
+            })
+        }
+
+        canvas.drawText(message.take(35), 15f, 75f, Paint().apply {
+            color = Color.LTGRAY
+            textSize = 14f
+            isAntiAlias = true
+        })
     }
 }
