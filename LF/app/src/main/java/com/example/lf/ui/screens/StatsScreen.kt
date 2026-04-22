@@ -78,7 +78,7 @@ fun StatsScreen(
                 )
             )
     ) {
-        // Декоративный размытый элемент
+
         Box(
             modifier = Modifier
                 .size(400.dp)
@@ -92,7 +92,7 @@ fun StatsScreen(
                 .fillMaxSize()
                 .padding(24.dp)
         ) {
-            // Заголовок с кнопкой назад
+
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 verticalAlignment = Alignment.CenterVertically
@@ -116,7 +116,6 @@ fun StatsScreen(
 
             Spacer(modifier = Modifier.height(24.dp))
 
-            // Кнопки выбора периода
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(12.dp)
@@ -151,7 +150,7 @@ fun StatsScreen(
                 LazyColumn(
                     verticalArrangement = Arrangement.spacedBy(16.dp)
                 ) {
-                    // Общая сводка
+
                     item {
                         StatsOverviewCard(
                             totalSessions = overallStats?.totalSessions ?: 0,
@@ -160,7 +159,6 @@ fun StatsScreen(
                         )
                     }
 
-                    // График для выбранного периода
                     when (selectedPeriod) {
                         "week" -> {
                             if (weeklyStats.isNotEmpty()) {
@@ -179,12 +177,10 @@ fun StatsScreen(
                         }
                     }
 
-                    // Топ упражнений
                     if (exerciseStats.isNotEmpty()) {
                         item { TopExercisesCard(exerciseStats = exerciseStats) }
                     }
 
-                    // История тренировок
                     if (workoutHistory.isNotEmpty()) {
                         item { HistoryCard(workoutHistory = workoutHistory) }
                     }

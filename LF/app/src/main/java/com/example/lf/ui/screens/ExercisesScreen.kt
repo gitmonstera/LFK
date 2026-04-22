@@ -25,7 +25,6 @@ import com.example.lf.viewmodel.AuthViewModel
 import com.example.lf.viewmodel.StatsViewModel
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.livedata.observeAsState
-import androidx.lifecycle.compose.collectAsStateWithLifecycle
 
 @Composable
 fun ExercisesScreen(
@@ -37,10 +36,8 @@ fun ExercisesScreen(
     val exercises by statsViewModel.exercises.observeAsState(emptyList())
     val isLoading by statsViewModel.isLoading.observeAsState(false)
 
-    val currentToken = token
-
-    LaunchedEffect(currentToken) {
-        currentToken?.let {
+    LaunchedEffect(token) {
+        token?.let {
             statsViewModel.loadExercises(it)
         }
     }
@@ -180,6 +177,34 @@ fun ExerciseCard(
                 ) {
                     DifficultyBadge(level = exercise.difficultyLevel)
                     DurationBadge(seconds = exercise.durationSeconds)
+                }
+
+                if (exercise.applicableCodes.isNotEmpty()) {
+                    Spacer(modifier = Modifier.height(6.dp))
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(4.dp)
+                    ) {
+                        Icon(
+                            painter = painterResource(id = R.drawable.ic_medical),
+                            contentDescription = null,
+                            tint = TextSecondary,
+                            modifier = Modifier.size(12.dp)
+                        )
+                        Text(
+                            text = exercise.applicableCodes.take(3).joinToString(" · "),
+                            fontSize = 11.sp,
+                            color = TextSecondary,
+                            maxLines = 1
+                        )
+                        if (exercise.applicableCodes.size > 3) {
+                            Text(
+                                text = "+${exercise.applicableCodes.size - 3}",
+                                fontSize = 10.sp,
+                                color = Primary
+                            )
+                        }
+                    }
                 }
             }
 

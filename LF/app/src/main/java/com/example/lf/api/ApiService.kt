@@ -53,20 +53,6 @@ data class ExerciseListResponse(
     @SerializedName("items") val items: List<ExerciseResponse>
 )
 
-data class ExerciseResponse(
-    @SerializedName("exercise_id") val exerciseId: String,
-    @SerializedName("name") val name: String,
-    @SerializedName("description") val description: String,
-    @SerializedName("category") val category: String,
-    @SerializedName("category_id") val categoryId: Int,
-    @SerializedName("category_icon") val categoryIcon: String?,
-    @SerializedName("category_color") val categoryColor: String,
-    @SerializedName("difficulty_level") val difficultyLevel: Int,
-    @SerializedName("target_muscles") val targetMuscles: List<String>,
-    @SerializedName("instructions") val instructions: List<String>,
-    @SerializedName("duration_seconds") val durationSeconds: Int
-)
-
 data class WorkoutStartResponse(
     @SerializedName("id") val id: String,
     @SerializedName("started_at") val startedAt: String,
