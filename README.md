@@ -1,3 +1,4 @@
+
 # Лечебная Физическая Культура (ЛФК) 🏥
 
 <div align="center">
@@ -9,8 +10,9 @@
   ![Version](https://img.shields.io/badge/version-2.0.0-blue?style=flat-square)
   ![License](https://img.shields.io/badge/license-MIT-green?style=flat-square)
   [![Go Report Card](https://goreportcard.com/badge/github.com/gitmonstera/lfk?style=flat-square)](https://goreportcard.com/report/github.com/gitmonstera/lfk)
-  ![Quasar](https://img.shields.io/badge/Quasar-1976D2?style=flat-square&logo=quasar&logoColor=white)
-  ![Vue.js](https://img.shields.io/badge/Vue.js-4FC08D?style=flat-square&logo=vue.js&logoColor=white)
+  ![Kotlin](https://img.shields.io/badge/Kotlin-7F52FF?style=flat-square&logo=kotlin&logoColor=white)
+  ![Jetpack Compose](https://img.shields.io/badge/Jetpack%20Compose-4285F4?style=flat-square&logo=jetpack-compose&logoColor=white)
+  ![MediaPipe](https://img.shields.io/badge/MediaPipe-0097A7?style=flat-square&logo=mediapipe&logoColor=white)
   ![Redis](https://img.shields.io/badge/Redis-DC382D?style=flat-square&logo=redis&logoColor=white)
   ![Docker](https://img.shields.io/badge/Docker-2496ED?style=flat-square&logo=docker&logoColor=white)
   
@@ -35,11 +37,12 @@
 
 | | | |
 |---|---|---|
-| 📹 **Компьютерное зрение** | Анализ движений в реальном времени через камеру смартфона или веб-камеру |
+| 📹 **Компьютерное зрение** | Анализ движений в реальном времени через камеру смартфона |
 | 📊 **Детальная статистика** | Отслеживание прогресса, история тренировок, достижения |
-| 📱 **Кроссплатформенность** | Веб-версия (Quasar) и мобильное приложение (Kotlin) |
+| 📱 **Кроссплатформенность** | Веб-версия (Quasar) и нативное мобильное приложение (Kotlin) |
 | 🔄 **WebSocket соединение** | Мгновенная передача видео и обратная связь в реальном времени |
 | 🏋️ **Разнообразие упражнений** | Кулак, кулак-ладонь, кулак с указательным пальцем, считалочка и другие |
+| 🩺 **Интеграция с МКБ-10** | Каждое упражнение привязано к соответствующим кодам диагнозов |
 
 ---
 
@@ -61,13 +64,11 @@
 ![Vite](https://img.shields.io/badge/Vite-646CFF?style=for-the-badge&logo=vite&logoColor=white)
 ![SCSS](https://img.shields.io/badge/SCSS-CC6699?style=for-the-badge&logo=sass&logoColor=white)
 
-### Computer Vision
-![MediaPipe](https://img.shields.io/badge/MediaPipe-0097A7?style=for-the-badge&logo=mediapipe&logoColor=white)
-![OpenCV](https://img.shields.io/badge/OpenCV-5C3EE8?style=for-the-badge&logo=opencv&logoColor=white)
-
 ### Mobile
 ![Kotlin](https://img.shields.io/badge/Kotlin-7F52FF?style=for-the-badge&logo=kotlin&logoColor=white)
 ![Jetpack Compose](https://img.shields.io/badge/Jetpack%20Compose-4285F4?style=for-the-badge&logo=jetpack-compose&logoColor=white)
+![CameraX](https://img.shields.io/badge/CameraX-3DDC84?style=for-the-badge&logo=android&logoColor=white)
+![MediaPipe](https://img.shields.io/badge/MediaPipe-0097A7?style=for-the-badge&logo=mediapipe&logoColor=white)
 
 ### DevOps
 ![Docker](https://img.shields.io/badge/Docker-2496ED?style=for-the-badge&logo=docker&logoColor=white)
@@ -86,7 +87,7 @@
 
 | | | |
 |:---:|:---:|:---:|
-| **Вход** | **Регистрация** | **Главная** |
+| **Вход** | **Регистрация** | **Главное меню** |
 | <img src="resours/screen/LoginScreen.jpg" width="200"/> | <img src="resours/screen/RegisterScreen.jpg" width="200"/> | <img src="resours/screen/MainMenuScreen.jpg" width="200"/> |
 
 ### 👤 Профиль и статистика
@@ -98,14 +99,14 @@
 
 | | | |
 |:---:|:---:|:---:|
-| **Недельная статистика** | **Месячная статистика** | **Упражнения** |
+| **Недельная статистика** | **Месячная статистика** | **Статистика по упражнениям** |
 | <img src="resours/screen/StatsScreen3.jpg" width="200"/> | <img src="resours/screen/StatsScreen4.jpg" width="200"/> | <img src="resours/screen/StatsScreen5.jpg" width="200"/> |
 
 ### 🎯 Выполнение упражнения
 
 | | | |
 |:---:|:---:|:---:|
-| **Выбор упражнения** | **Процесс выполнения** | **Результат** |
+| **Список упражнений** | **Процесс выполнения** | **Результат** |
 | <img src="resours/screen/ExercisesScreen.jpg" width="200"/> | <img src="resours/screen/ExerciseScreen.jpg" width="200"/> | <img src="resours/screen/StatsScreen6.jpg" width="200"/> |
 
 </div>
@@ -119,7 +120,7 @@
 - Python 3.10+
 - PostgreSQL 14+
 - Redis 7+
-- Node.js 18+ (для фронтенда)
+- Node.js 18+ (для веб-фронтенда)
 - Docker & Docker Compose (опционально)
 
 ### 🏃‍♂️ Запуск в режиме разработки
@@ -165,13 +166,20 @@ pip install -r requirements.txt
 python exercise_detector.py
 ```
 
-#### 5️⃣ Запуск фронтенда
+#### 5️⃣ Запуск веб-фронтенда
 ```bash
 # Терминал 3 - Quasar
 cd frontend
 npm install
 npm run dev
 # Сайт будет доступен на http://localhost:8080
+```
+
+#### 6️⃣ Запуск мобильного приложения
+```bash
+# Откройте папку LF в Android Studio
+# Дождитесь синхронизации Gradle
+# Запустите на эмуляторе или реальном устройстве
 ```
 
 ### 🐳 Запуск через Docker Compose
@@ -193,122 +201,48 @@ docker-compose logs -f
 
 ```
 📦 LFK
-├── 🤖 androidApp
-│   └── 📱 app
+├── 🤖 LF (мобильное приложение)
+│   ├── 📱 app
+│   │   ├── 📂 src/main/java/com/example/lf
+│   │   │   ├── 📂 api           # Работа с REST API
+│   │   │   ├── 📂 exercises     # Логика упражнений
+│   │   │   ├── 📂 ui
+│   │   │   │   ├── 📂 components   # Переиспользуемые компоненты
+│   │   │   │   ├── 📂 navigation  # Навигация
+│   │   │   │   ├── 📂 screens     # Экраны приложения
+│   │   │   │   └── 📂 theme       # Темы и стили
+│   │   │   └── 📂 viewmodel     # ViewModel'и
+│   │   └── 📂 assets             # Модель MediaPipe
+│   └── 📄 build.gradle.kts
 │
 ├── ⚙️ backend
-│   ├── 🚀 cmd
-│   │   └── server
-│   │       ├── ⚙️ configs
-│   │       │   └── 📄 config.yaml
-│   │       ├── 🌐 web
-│   │       │   ├── 🎨 assets
-│   │       │   │   ├── 📄 DownloadPage-B7PzhjNf.css
-│   │       │   │   ├── 📄 DownloadPage-CCmhotBU.js
-│   │       │   │   ├── 📄 ExercisePage-jUDrZysy.css
-│   │       │   │   ├── 📄 ExercisePage-RjrWflDj.js
-│   │       │   │   ├── 📄 ExercisesPage-BQC3bGHU.js
-│   │       │   │   ├── 📄 ExercisesPage-wQCisriw.css
-│   │       │   │   ├── 📄 index-CT6VCLMC.js
-│   │       │   │   ├── 📄 index-dL11cRdX.css
-│   │       │   │   ├── 📄 index-DxZe7dCM.js
-│   │       │   │   ├── 📄 IndexPage-5hXwcDwN.js
-│   │       │   │   ├── 📄 IndexPage-Ci1gmyRV.css
-│   │       │   │   ├── 📄 LoginPage-0cnyOmuO.js
-│   │       │   │   ├── 📄 LoginPage-BYX1jlvN.css
-│   │       │   │   ├── 📄 MainLayout-6xgF5b3Y.css
-│   │       │   │   ├── 📄 MainLayout-DT1RSESP.js
-│   │       │   │   ├── 📄 ProfileLayout-CpC4vt6W.js
-│   │       │   │   ├── 📄 ProfileLayout-CXE_Pt5u.css
-│   │       │   │   ├── 📄 ProfilePage-B8cwzaaR.css
-│   │       │   │   ├── 📄 ProfilePage-BXHzCIto.js
-│   │       │   │   └── 📄 ...
-│   │       │   ├── 📥 downloads
-│   │       │   │   └── 📄 lfk-android.apk
-│   │       │   ├── 🎯 logo
-│   │       │   │   └── 📄 logo.svg
-│   │       │   └── 📄 index.html
-│   │       ├── 📄 index.html
-│   │       └── 📄 main.go
+│   ├── 🚀 cmd/server
+│   │   ├── 🌐 web             # Собранный веб-фронтенд
+│   │   └── 📄 main.go
 │   │
 │   ├── 🔧 internal
-│   │   ├── 🔐 auth
-│   │   │   └── 📄 jwt.go
-│   │   ├── ⚙️ config
-│   │   │   └── 📄 config.go
-│   │   ├── 🖐️ handlers
-│   │   │   ├── 📄 exercise_handler.go
-│   │   │   ├── 📄 stats_handler.go
-│   │   │   ├── 📄 user_handler.go
-│   │   │   └── 📄 workout_handler.go
-│   │   ├── 🛡️ middleware
-│   │   │   └── 📄 auth_middleware.go
-│   │   ├── 📊 models
-│   │   │   ├── 📄 auth_models.go
-│   │   │   ├── 📄 exercise.go
-│   │   │   ├── 📄 exercise_set.go
-│   │   │   ├── 📄 register_request.go
-│   │   │   ├── 📄 stats.go
-│   │   │   ├── 📄 user.go
-│   │   │   └── 📄 workout_session.go
-│   │   ├── 📦 redis
-│   │   │   ├── 📄 client.go
-│   │   │   ├── 📄 pubsub.go
-│   │   │   └── 📄 queue.go
-│   │   ├── 🗄️ repository
-│   │   │   ├── 📄 exercise_repository.go
-│   │   │   ├── 📄 stats_repository.go
-│   │   │   ├── 📄 user_repository.go
-│   │   │   └── 📄 workout_repository.go
-│   │   └── 🔌 websocket
-│   │       ├── 📄 cluster_hub.go
-│   │       └── 📄 hub.go
+│   │   ├── 🔐 auth            # JWT аутентификация
+│   │   ├── 🖐️ handlers        # HTTP обработчики
+│   │   ├── 🛡️ middleware      # Middleware
+│   │   ├── 📊 models          # Модели данных
+│   │   ├── 📦 redis           # Redis клиент и Pub/Sub
+│   │   ├── 🗄️ repository      # Репозитории PostgreSQL
+│   │   └── 🔌 websocket       # WebSocket хабы
 │   │
-│   ├── 🗃️ migrations
-│   │   └── 📄 init.sql
-│   ├── 📦 pkg
-│   │   └── python_bridge
-│   │       └── 📄 client.go
-│   ├── 🐍 python_processor
-│   │   ├── 🏋️ exercises
-│   │   │   ├── 📄 base_exercise.py
-│   │   │   ├── 📄 finger_touching_exercise.py
-│   │   │   ├── 📄 fist_exercise.py
-│   │   │   ├── 📄 fist_index_exercise.py
-│   │   │   ├── 📄 fist_palm_exercise.py
-│   │   │   └── 📄 __init__.py
-│   │   ├── 📄 exercise_detector.py
-│   │   └── 📄 requirements.txt
+│   ├── 🗃️ migrations          # SQL миграции
+│   ├── 🐍 python_processor    # Python сервис для MediaPipe
+│   │   ├── 🏋️ exercises       # Реализации упражнений
+│   │   └── 📄 exercise_detector.py
 │   ├── 📄 go.mod
 │   └── 📄 go.sum
 │
+├── 🎨 frontend                # Quasar/Vue приложение
 ├── 🐳 deployments
-│   ├── 🐋 docker
-│   │   ├── go
-│   │   │   └── 📄 Dockerfile
-│   │   └── python
-│   │       └── 📄 Dockerfile
 │   └── 📄 docker-compose.yml
-│
-├── 🎨 resours
-│   ├── 📱 screen
-│   │   ├── 📄 LoginScreen.jpg
-│   │   ├── 📄 MainMenuScreen.jpg
-│   │   ├── 📄 ProfileScreen.jpg
-│   │   ├── 📄 RegisterScreen.jpg
-│   │   ├── 📄 StatsScreen1.jpg
-│   │   ├── 📄 StatsScreen2.jpg
-│   │   ├── 📄 StatsScreen3.jpg
-│   │   ├── 📄 StatsScreen4.jpg
-│   │   └── 📄 StatsScreen5.jpg
-│   ├── 📄 center_logo.svg
-│   └── 📄 lfk_logo_v1.svg
-│
-├── 📜 scripts
-├── 📄 create_tables.sql
+├── 🎨 resours                 # Ресурсы для README
+│   ├── 📱 screen              # Скриншоты приложения
+│   └── 📄 center_logo.svg
 └── 📖 README.md
-
-66 directories, 165 files
 ```
 
 ---
@@ -336,7 +270,7 @@ docker-compose logs -f
 #### 🏋️ Упражнения
 | Метод | Эндпоинт | Описание |
 |--------|----------|----------|
-| `GET` | `/api/get_exercise_list` | Список всех упражнений |
+| `GET` | `/api/get_exercise_list` | Список всех упражнений с МКБ-10 |
 | `GET` | `/api/exercise_state` | Состояние упражнения |
 | `POST` | `/api/exercise/reset` | Сброс упражнения |
 
@@ -363,6 +297,7 @@ docker-compose logs -f
 | `/ws/exercise/fist` | Упражнение "Кулак" |
 | `/ws/exercise/fist-index` | Упражнение "Кулак с указательным пальцем" |
 | `/ws/exercise/fist-palm` | Упражнение "Кулак-ладонь" |
+| `/ws/exercise/finger-touching` | Упражнение "Считалочка" |
 
 </details>
 
@@ -370,7 +305,14 @@ docker-compose logs -f
 
 ## 📦 Сборка для production
 
-### Фронтенд
+### Мобильное приложение
+```bash
+cd LF
+./gradlew assembleRelease
+# APK будет в LF/app/build/outputs/apk/release/
+```
+
+### Веб-фронтенд
 ```bash
 cd frontend
 npm run build
@@ -385,8 +327,9 @@ go build -o lfk-server cmd/main.go
 
 ### Полный production запуск
 
- На сервере 80.93.63.206
-    Сайт: http://80.93.63.206:8080
+На сервере `80.93.63.206`:
+- Сайт: [http://80.93.63.206:8080](http://80.93.63.206:8080)
+- API: [http://80.93.63.206:9000](http://80.93.63.206:9000)
 
 ---
 
@@ -411,3 +354,5 @@ go build -o lfk-server cmd/main.go
 ### 🌟 Если проект вам полезен, поставьте звездочку! 🌟
 
 **[⬆ Вернуться к началу](#лечебная-физическая-культура-лфк)**
+
+</div>
