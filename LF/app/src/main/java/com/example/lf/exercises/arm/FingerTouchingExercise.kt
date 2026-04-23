@@ -1,8 +1,10 @@
-package com.example.lf.exercises
+package com.example.lf.exercises.arm
 
 import android.graphics.Canvas
 import android.graphics.Color
 import android.graphics.Paint
+import android.util.Log
+import com.example.lf.exercises.BaseExercise
 import com.google.mediapipe.tasks.components.containers.NormalizedLandmark
 import kotlin.math.abs
 import kotlin.math.max
@@ -40,7 +42,7 @@ class FingerTouchingExercise : BaseExercise() {
                 calibrated = true
                 val avgSize = fingerSizes.filter { it > 0 }.average().toFloat()
                 touchThreshold = if (avgSize > 0) avgSize * 0.8f else baseThreshold
-                android.util.Log.d("FingerTouching", "Калибровка завершена, порог: $touchThreshold")
+                Log.d("FingerTouching", "Калибровка завершена, порог: $touchThreshold")
                 return
             }
 
@@ -123,7 +125,7 @@ class FingerTouchingExercise : BaseExercise() {
                         if (currentCycle >= totalCycles) {
                             completed = true
                             autoReset = true
-                            android.util.Log.d("FingerTouching", "Упражнение завершено!")
+                            Log.d("FingerTouching", "Упражнение завершено!")
                         }
                     }
                 }

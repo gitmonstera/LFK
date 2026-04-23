@@ -1,251 +1,56 @@
 package com.example.lf.ui.screens
 
 import android.Manifest
-import android.content.Context
-import android.graphics.Bitmap
-import android.graphics.Matrix
-import android.os.SystemClock
 import android.util.Log
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.camera.core.*
-import androidx.camera.lifecycle.ProcessCameraProvider
-import androidx.camera.view.PreviewView
-import androidx.compose.foundation.Canvas
+import androidx.camera.core.CameraSelector
+import androidx.camera.core.ExperimentalGetImage
 import androidx.compose.foundation.background
-import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material3.*
-import androidx.compose.runtime.*
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.LinearProgressIndicator
+import androidx.compose.material3.Text
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.compose.ui.viewinterop.AndroidView
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.NavController
-import com.example.lf.exercises.*
+import com.example.lf.camera.CameraPreview
+import com.example.lf.camera.HelperFunctions
+import com.example.lf.exercises.arm.FingerTouchingExercise
+import com.example.lf.exercises.arm.FistExercise
+import com.example.lf.exercises.arm.FistPalmExercise
 import com.example.lf.viewmodel.AuthViewModel
 import com.example.lf.viewmodel.StatsViewModel
-import com.google.mediapipe.framework.image.BitmapImageBuilder
-import com.google.mediapipe.tasks.core.BaseOptions
-import com.google.mediapipe.tasks.core.Delegate
-import com.google.mediapipe.tasks.vision.core.RunningMode
-import com.google.mediapipe.tasks.vision.handlandmarker.HandLandmarker
-import com.google.mediapipe.tasks.vision.handlandmarker.HandLandmarker.HandLandmarkerOptions
-import com.google.mediapipe.tasks.vision.handlandmarker.HandLandmarkerResult
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
-import kotlin.coroutines.resume
-import kotlin.coroutines.suspendCoroutine
 
-// ==================== HelperFunctions (из референса) ====================
-class HelperFunctions(val context: Context) {
-    private val cameraFacing = CameraSelector.LENS_FACING_FRONT
-    var handLandmarker: HandLandmarker? = null
-    private var _detectionResults = mutableStateOf(HandDetectionResult())
-    val detectionResults: State<HandDetectionResult> = _detectionResults
-
-    // Колбэк для передачи результатов в ExerciseScreen
-    var onResults: ((HandDetectionResult) -> Unit)? = null
-
-    fun modelInitialization() {
-        try {
-            val baseOptions = BaseOptions.builder()
-                .setDelegate(Delegate.GPU)
-                .setModelAssetPath("hand_landmarker.task")
-                .build()
-            val optionsBuilder = HandLandmarkerOptions.builder()
-                .setBaseOptions(baseOptions)
-                .setNumHands(1)
-                .setMinHandDetectionConfidence(0.5f)
-                .setMinHandPresenceConfidence(0.5f)
-                .setMinTrackingConfidence(0.5f)
-                .setRunningMode(RunningMode.LIVE_STREAM)
-                .setResultListener { result, inputImage ->
-                    val detectionResult = HandDetectionResult(
-                        landmarks = result.landmarks(),
-                        imageWidth = inputImage.width,
-                        imageHeight = inputImage.height,
-                        isFrontCamera = cameraFacing == CameraSelector.LENS_FACING_FRONT
-                    )
-                    _detectionResults.value = detectionResult
-                    onResults?.invoke(detectionResult)
-                }
-                .setErrorListener { error ->
-                    Log.e("HandDetection", "MediaPipe error: ${error.message}")
-                }
-            handLandmarker = HandLandmarker.createFromOptions(context, optionsBuilder.build())
-            Log.d("HandDetection", "MediaPipe initialized")
-        } catch (e: Exception) {
-            Log.e("HandDetection", "Initialization error: ${e.message}")
-        }
-    }
-
-    fun detectHand(imageProxy: ImageProxy) {
-        val frameTime = SystemClock.uptimeMillis()
-        val bitmapBuffer = Bitmap.createBitmap(
-            imageProxy.width, imageProxy.height, Bitmap.Config.ARGB_8888
-        )
-        imageProxy.use { bitmapBuffer.copyPixelsFromBuffer(imageProxy.planes[0].buffer) }
-        imageProxy.close()
-
-        val matrix = Matrix().apply {
-            postRotate(imageProxy.imageInfo.rotationDegrees.toFloat())
-            if (cameraFacing == CameraSelector.LENS_FACING_FRONT) {
-                postScale(-1f, 1f, imageProxy.width.toFloat(), imageProxy.height.toFloat())
-            }
-        }
-        val rotatedBitmap = Bitmap.createBitmap(
-            bitmapBuffer, 0, 0, bitmapBuffer.width, bitmapBuffer.height, matrix, true
-        )
-        val mpImage = BitmapImageBuilder(rotatedBitmap).build()
-        handLandmarker?.detectAsync(mpImage, frameTime)
-    }
-
-    fun close() {
-        handLandmarker?.close()
-    }
-}
-
-// ==================== HandDetectionResult ====================
-data class HandDetectionResult(
-    val landmarks: List<List<com.google.mediapipe.tasks.components.containers.NormalizedLandmark>> = emptyList(),
-    val imageWidth: Int = 0,
-    val imageHeight: Int = 0,
-    val isFrontCamera: Boolean = true
-)
-
-// ==================== CameraPreview (из референса) ====================
-@Composable
-fun CameraPreview(
-    helperFunctions: HelperFunctions,
-    lensFacing: Int = CameraSelector.LENS_FACING_FRONT
-) {
-    val context = LocalContext.current
-    val lifecycleOwner = LocalLifecycleOwner.current
-    val preview = Preview.Builder().build()
-    val previewView = remember {
-        PreviewView(context).apply {
-            scaleType = PreviewView.ScaleType.FILL_START
-        }
-    }
-
-    val imageAnalysis = remember {
-        ImageAnalysis.Builder()
-            .setBackpressureStrategy(ImageAnalysis.STRATEGY_KEEP_ONLY_LATEST)
-            .setOutputImageFormat(ImageAnalysis.OUTPUT_IMAGE_FORMAT_RGBA_8888)
-            .build()
-            .also {
-                it.setAnalyzer(ContextCompat.getMainExecutor(context)) { imageProxy ->
-                    helperFunctions.detectHand(imageProxy)
-                }
-            }
-    }
-
-    val cameraSelector = CameraSelector.Builder().requireLensFacing(lensFacing).build()
-
-    LaunchedEffect(lensFacing) {
-        val cameraProvider = context.getCameraProvider()
-        try {
-            cameraProvider.unbindAll()
-            cameraProvider.bindToLifecycle(
-                lifecycleOwner,
-                cameraSelector,
-                preview,
-                imageAnalysis
-            )
-            preview.setSurfaceProvider(previewView.surfaceProvider)
-        } catch (e: Exception) {
-            e.printStackTrace()
-        }
-    }
-
-    Box(Modifier.fillMaxSize()) {
-        AndroidView(
-            factory = { previewView },
-            modifier = Modifier.fillMaxSize()
-        )
-        HandLandmarkOverlay(
-            detectionResults = helperFunctions.detectionResults.value,
-            modifier = Modifier.fillMaxSize()
-        )
-    }
-}
-
-// ==================== HandLandmarkOverlay (из референса) ====================
-@Composable
-fun HandLandmarkOverlay(
-    detectionResults: HandDetectionResult,
-    modifier: Modifier = Modifier
-) {
-    Canvas(modifier = modifier) {
-        if (detectionResults.landmarks.isEmpty()) return@Canvas
-
-        val imageWidth = detectionResults.imageWidth
-        val imageHeight = detectionResults.imageHeight
-        if (imageWidth == 0 || imageHeight == 0) return@Canvas
-
-        val scaleFactor = maxOf(
-            size.width / imageWidth.toFloat(),
-            size.height / imageHeight.toFloat()
-        )
-
-        detectionResults.landmarks.forEach { handLandmarks ->
-            // Рисуем связи между точками
-            HandLandmarker.HAND_CONNECTIONS.forEach { connection ->
-                val startPoint = handLandmarks[connection.start()]
-                val endPoint = handLandmarks[connection.end()]
-
-                drawLine(
-                    color = Color(0xFF00FF00),
-                    start = Offset(
-                        startPoint.x() * imageWidth * scaleFactor,
-                        startPoint.y() * imageHeight * scaleFactor
-                    ),
-                    end = Offset(
-                        endPoint.x() * imageWidth * scaleFactor,
-                        endPoint.y() * imageHeight * scaleFactor
-                    ),
-                    strokeWidth = 8f
-                )
-            }
-
-            // Рисуем точки
-            handLandmarks.forEach { landmark ->
-                drawCircle(
-                    color = Color.Yellow,
-                    radius = 8f,
-                    center = Offset(
-                        landmark.x() * imageWidth * scaleFactor,
-                        landmark.y() * imageHeight * scaleFactor
-                    )
-                )
-            }
-        }
-    }
-}
-
-// Вспомогательная функция для получения CameraProvider
-private suspend fun Context.getCameraProvider(): ProcessCameraProvider = suspendCoroutine { cont ->
-    ProcessCameraProvider.getInstance(this).also { cameraProvider ->
-        cameraProvider.addListener(
-            { cont.resume(cameraProvider.get()) },
-            ContextCompat.getMainExecutor(this)
-        )
-    }
-}
-
-// ==================== ExerciseScreen ====================
 @OptIn(ExperimentalGetImage::class)
 @Composable
 fun ExerciseScreen(
@@ -300,16 +105,13 @@ fun ExerciseScreen(
         }
     }
 
-    // Создаём HelperFunctions
     val helper = remember { HelperFunctions(context) }
 
-    // Инициализируем модель
     LaunchedEffect(Unit) {
         helper.modelInitialization()
         addLog("MediaPipe инициализирован")
     }
 
-    // Подписываемся на результаты детекции и обновляем UI
     LaunchedEffect(helper) {
         helper.onResults = { result ->
             if (result.landmarks.isNotEmpty()) {
@@ -353,7 +155,6 @@ fun ExerciseScreen(
         }
     }
 
-    // UI
     Column(
         modifier = Modifier
             .fillMaxSize()

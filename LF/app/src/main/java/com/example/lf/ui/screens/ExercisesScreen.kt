@@ -85,7 +85,7 @@ fun ExercisesScreen(
 
             Spacer(modifier = Modifier.height(24.dp))
 
-            if (isLoading == true) {
+            if (isLoading) {
                 Box(
                     modifier = Modifier.fillMaxSize(),
                     contentAlignment = Alignment.Center

@@ -1,12 +1,30 @@
 package com.example.lf.ui.screens
 
 import androidx.compose.foundation.background
-import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material3.*
-import androidx.compose.runtime.*
+import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.Text
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.livedata.observeAsState
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.blur
@@ -24,15 +42,20 @@ import com.example.lf.api.ExerciseStatResponse
 import com.example.lf.api.OverallStatsResponse
 import com.example.lf.api.WorkoutHistoryResponse
 import com.example.lf.ui.components.GlassCard
+import com.example.lf.ui.components.HistoryItem
 import com.example.lf.ui.components.PeriodButton
 import com.example.lf.ui.components.StatValueCard
 import com.example.lf.ui.components.TopExerciseItem
-import com.example.lf.ui.components.HistoryItem
-import com.example.lf.ui.theme.*
+import com.example.lf.ui.theme.BackgroundCard
+import com.example.lf.ui.theme.BackgroundDark
+import com.example.lf.ui.theme.Primary
+import com.example.lf.ui.theme.PrimaryLight
+import com.example.lf.ui.theme.Secondary
+import com.example.lf.ui.theme.Success
+import com.example.lf.ui.theme.TextPrimary
+import com.example.lf.ui.theme.TextSecondary
 import com.example.lf.viewmodel.AuthViewModel
 import com.example.lf.viewmodel.StatsViewModel
-import androidx.compose.runtime.livedata.observeAsState
-import androidx.compose.runtime.getValue
 
 @Composable
 fun StatsScreen(
@@ -139,7 +162,7 @@ fun StatsScreen(
 
             Spacer(modifier = Modifier.height(24.dp))
 
-            if (isLoading == true) {
+            if (isLoading) {
                 Box(
                     modifier = Modifier.fillMaxSize(),
                     contentAlignment = Alignment.Center
@@ -206,7 +229,7 @@ fun StatsOverviewCard(
             overflow = TextOverflow.Ellipsis
         )
 
-        Spacer(modifier = Modifier.height(16.dp))
+        Spacer(modifier = Modifier.height(20.dp))
 
         Row(
             modifier = Modifier.fillMaxWidth(),
@@ -271,7 +294,7 @@ fun WeeklyChartCard(weeklyStats: List<DailyStatsResponse>) {
                                 RoundedCornerShape(topStart = 8.dp, topEnd = 8.dp)
                             )
                     )
-                    Spacer(modifier = Modifier.height(8.dp))
+                    Spacer(modifier = Modifier.height(18.dp))
                     Text(
                         day.statDate.substring(5, 10),
                         fontSize = 10.sp,
@@ -282,7 +305,7 @@ fun WeeklyChartCard(weeklyStats: List<DailyStatsResponse>) {
             }
         }
 
-        Spacer(modifier = Modifier.height(8.dp))
+        Spacer(modifier = Modifier.height(18.dp))
         Text(
             "⏱️ Активность по дням",
             fontSize = 10.sp,
@@ -306,7 +329,7 @@ fun MonthlyStatsCard(monthlyStats: List<DailyStatsResponse>) {
             overflow = TextOverflow.Ellipsis
         )
 
-        Spacer(modifier = Modifier.height(12.dp))
+        Spacer(modifier = Modifier.height(20.dp))
 
         val totalSessions = monthlyStats.sumOf { it.totalSessions }
         val totalMinutes = monthlyStats.sumOf { it.totalDurationSeconds } / 60
@@ -386,7 +409,7 @@ fun AllTimeStatsCard(stats: OverallStatsResponse) {
             overflow = TextOverflow.Ellipsis
         )
 
-        Spacer(modifier = Modifier.height(12.dp))
+        Spacer(modifier = Modifier.height(20.dp))
 
         Row(
             modifier = Modifier.fillMaxWidth(),
@@ -464,7 +487,7 @@ fun TopExercisesCard(exerciseStats: List<ExerciseStatResponse>) {
             overflow = TextOverflow.Ellipsis
         )
 
-        Spacer(modifier = Modifier.height(12.dp))
+        Spacer(modifier = Modifier.height(20.dp))
 
         exerciseStats.take(3).forEach { exercise ->
             TopExerciseItem(
@@ -490,7 +513,7 @@ fun HistoryCard(workoutHistory: List<WorkoutHistoryResponse>) {
             overflow = TextOverflow.Ellipsis
         )
 
-        Spacer(modifier = Modifier.height(12.dp))
+        Spacer(modifier = Modifier.height(20.dp))
 
         workoutHistory.take(3).forEach { workout ->
             val date = workout.startedAt.substring(0, 10)

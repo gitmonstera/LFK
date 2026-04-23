@@ -1,5 +1,6 @@
-package com.example.lf.exercises
+package com.example.lf.exercises.arm
 
+import com.example.lf.exercises.BaseExercise
 import com.google.mediapipe.tasks.components.containers.NormalizedLandmark
 
 class FistPalmExercise : BaseExercise() {
