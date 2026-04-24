@@ -1,3 +1,12 @@
 <resources>
-    <string name="app_name">LFK</string>
+    <string name="app_name">ЛФК</string>
+
+    <string name="text_hor_card_about">LFK — это интеллектуальная система, которая помогает людям правильно выполнять упражнения лечебной физкультуры.
+                                Проект использует компьютерное зрение для анализа движений в реальном времени, предоставляет обратную связь и отслеживает прогресс.</string>
+
+    <string name="text_hor_card_tecnology">• Kotlin + Jetpack Compose
+                                • MediaPipe Hands (распознавание рук)
+                                • CameraX (захват видео)
+                                • Retrofit + OkHttp (сеть)
+                                • Go + Python (бэкенд)</string>
 </resources>

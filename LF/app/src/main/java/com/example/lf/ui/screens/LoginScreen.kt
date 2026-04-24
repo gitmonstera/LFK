@@ -48,7 +48,6 @@ fun LoginScreen(
     // Показ ошибки
     LaunchedEffect(authState.error) {
         authState.error?.let { error ->
-            // Можно показать Snackbar или диалог
             println("Ошибка: $error")
         }
     }

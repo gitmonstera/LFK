@@ -5,6 +5,7 @@ import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
+import com.example.lf.ui.screens.AboutScreen
 import com.example.lf.ui.screens.ExercisesScreen
 import com.example.lf.ui.screens.LoginScreen
 import com.example.lf.ui.screens.MainMenuScreen
@@ -26,6 +27,7 @@ sealed class Screen(val route: String) {
         fun passId(id: String) = "exercise/$id"
     }
     object Stats : Screen("stats")
+    object About : Screen("about")
 }
 
 @Composable
@@ -80,6 +82,11 @@ fun NavGraph(
                 navController = navController,
                 statsViewModel = statsViewModel,
                 authViewModel = authViewModel
+            )
+        }
+        composable(Screen.About.route) {
+            AboutScreen(
+                navController = navController,
             )
         }
     }

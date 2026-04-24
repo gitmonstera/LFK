@@ -1,0 +1,35 @@
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:aapt="http://schemas.android.com/aapt"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+
+    <!-- Фоновый круг с градиентом (тень) -->
+    <path android:pathData="M54,10 A44,44 0 1,1 54,98 A44,44 0 1,1 54,10 Z">
+        <aapt:attr name="android:fillColor">
+            <gradient
+                android:endX="98"
+                android:endY="98"
+                android:startX="10"
+                android:startY="10"
+                android:type="linear">
+                <item
+                    android:color="#44000000"
+                    android:offset="0.0" />
+                <item
+                    android:color="#00000000"
+                    android:offset="1.0" />
+            </gradient>
+        </aapt:attr>
+    </path>
+
+    <!-- Белая буква "i" (информация) -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:fillType="nonZero"
+        android:pathData="M54,17 A7,7 0 1,1 54,31 A7,7 0 1,1 54,17 Z M49,42 Q49,40 51,40 L57,40 Q59,40 59,42 L59,70 Q59,72 57,72 L51,72 Q49,72 49,70 Z"
+        android:strokeWidth="1"
+        android:strokeColor="#00000000" />
+
+</vector>

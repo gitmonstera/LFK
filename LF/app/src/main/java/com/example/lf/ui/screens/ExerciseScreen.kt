@@ -198,8 +198,8 @@ fun ExerciseScreen(
                     modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp),
                     color = Color(0xFF4CAF50)
                 )
-                Text(messageText, color = Color.White.copy(alpha = 0.8f))
-                countdown?.let { Text("⏱️ Таймер: $it с", color = Color(0xFFFF9800), fontSize = 12.sp) }
+                Text(messageText, color = Color.White.copy(alpha = 0.8f), fontSize = 26.sp)
+                countdown?.let { Text("⏱️ Таймер: $it с", color = Color(0xFFFF9800), fontSize = 24.sp) }
             }
         }
 

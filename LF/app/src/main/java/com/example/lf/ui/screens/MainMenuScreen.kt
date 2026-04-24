@@ -71,6 +71,19 @@ fun MainMenuScreen(
                 )
             )
     ) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Spacer(modifier = Modifier.weight(1f))
+            IconButton(onClick = { navController.navigate("about") }) {
+                Icon(
+                    painter = painterResource(id = R.drawable.ic_about),
+                    contentDescription = null,
+                    tint = TextSecondary
+                )
+            }
+        }
         Box(
             modifier = Modifier
                 .size(400.dp)
